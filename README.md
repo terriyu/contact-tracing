@@ -13,8 +13,8 @@ To run all tests, run the following command in the root directory:
 
 To run an individual test:
 
-1. Load the testthat library: `> library(testthat)`
-2. Run the individual test, for example: `> test_file('test_simulate_network.R')`
+1. Load the testthat library: `library(testthat)`
+2. Run the individual test, for example: `test_file('test_simulate_network.R')`
    Use whatever is the correct path to the test you want to run.
 
 References
