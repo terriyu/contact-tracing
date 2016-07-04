@@ -1,61 +1,166 @@
 # Functions to simulate a network
 
-create.edge.prob.mtx <- function(nodes.per.class, P_ij) {
+# Load network package without all the startup messages
+suppressMessages(library(network))
+
+create.edge.prob.mtx <- function(nodes.per.class, P.ij) {
   # Number of classes
   num.classes <- length(nodes.per.class)
   # Number of nodes in network
   num.nodes <- sum(nodes.per.class)
 
-  # Check that matrix P.ij is symmetric
+  # Error checking: check that P.ij is square matrix
+  if (length(P.ij) > 1) {
+    if (dim(P.ij)[1] != dim(P.ij)[2]) {
+      stop("P.ij not a square matrix")
+    }
+  }
+
+  # Error checking: check that P.ij is symmetric matrix
   # Probability of link between class i and class j should be same as
   # probability of link between class j and class i
   if (! all(P.ij == t(P.ij))) {
-    print("Error: P_ij is not symmetric")
-    return()
-  } 
-
-  if (dim(P.ij)[1] != dim(P.ij)[2]) {
-    print("Error: P_ij not a square matrix")
-    return()
+    stop("P.ij is not symmetric")
   }
 
-  # Check that nodes.per.class and P.ij are consistent
-  if (num.classes != dim(P.ij)[1]) {
-    print("Error: nodes.per.class and P.ij have inconsistent dimensions")
-    return()  
+  # Error checking: check that nodes.per.class and P.ij are consistent
+  if (length(P.ij) > 1) {
+    if (num.classes != dim(P.ij)[1]) {
+      stop("nodes.per.class and P.ij have inconsistent dimensions")
+    }
   }
 
   # Case where there is only one node class
   if ((num.classes == 1) && (length(P.ij) == 1)) {
-    edge.prob.mtx <- matrix(P.ij, nrow = nodes.per.class, ncol = nodes.per.class)	
-    # Set diagonal of matrix to zero (node can't be linked to itself)
-    diag(edge.prob.mtx) <- 0
+    edge.prob.mtx <- matrix(P.ij, nrow = nodes.per.class, ncol = nodes.per.class)
+  # Case where there is more than one node class
   } else {
     # Vector where the value of entry i is the class for node i
     node.class.vec <- rep(1:num.classes, times = nodes.per.class)
-    # Row and column indices for each entry in a num.nodes x num.nodes matrix 
+    # Row and column indices for each entry in a num.nodes x num.nodes matrix
     # Hack for using mapply
     row.indices = rep(1:num.nodes, each = num.nodes)
     col.indices = rep(1:num.nodes, times = num.nodes)
     # For each pair of nodes i and j, compute probability of link between them
     # The probability is determined by the classes of node i and j
-    edge.prob.mtx <- matrix(mapply(function(i,j) P.ij[node.class.vec[i], node.class.vec[j]], row.indices, col.indices), nrow = num.nodes, ncol = num.nodes) 
-  } 
+    # We use mapply to vectorize this calculation and avoid for loops
+    edge.prob.mtx <- matrix(mapply(function(i,j) P.ij[node.class.vec[i], node.class.vec[j]], row.indices, col.indices), nrow = num.nodes, ncol = num.nodes)
+  }
+  # Set diagonal of matrix to zero (node can't be linked to itself)
+  diag(edge.prob.mtx) <- 0
 
   return(edge.prob.mtx)
 }
 
-#generate.network <- function(nodes.per.class, P.ij, tau= 0.5, eta = 0.05, zeta = 0.015) {
-#}
+generate.network <- function(nodes.per.class, P.ij) {
+  # Number of nodes in network
+  num.nodes <- sum(nodes.per.class)
+  # Create matrix containing prob each node is linked to another node
+  prob.mtx <- create.edge.prob.mtx(nodes.per.class, P.ij)
+  # Set lower triangle to zero, so we only generate a link between i and j once
+  prob.mtx[lower.tri(prob.mtx)] <- 0
+  # Create network
+  # Only generate links for upper triangle to ensure consistency
+  # We only want to generate a link between i and j once
+  upper.socio.mtx <- matrix(rbinom(num.nodes^2, 1, prob.mtx), nrow = num.nodes, ncol = num.nodes)
+  # After network has been generated, fill in lower triangle
+  full.socio.mtx <- upper.socio.mtx + t(upper.socio.mtx)
+  socio.net <- network(full.socio.mtx, directed = FALSE, hyper = FALSE, loops = FALSE, multiple = FALSE)
 
+  if (! all(full.socio.mtx == as.sociomatrix(socio.net))) {
+    stop("Network initialization inconsistent with input data")
+  }
+
+  return(socio.net)
+}
+
+spread.infection <- function(socio.net, eta, tau, verbose = FALSE, debug = FALSE, Z0 = NULL, W = NULL) {
+  if ((debug) & is.null(Z0) & is.null(W)) {
+    stop("If debugging, need to specify values for Z0 and W")
+  }
+
+  # Number of nodes in network
+  num.nodes <- network.size(socio.net)
+  # Extract sociomatrix from network
+  socio.mtx <- as.sociomatrix(socio.net)
+  # Generate initial infection Z0
+  # Multiple ways to do this: see tosource.R
+  # Assume independent homogenous Bernoulli processes on all nodes with parameter eta
+  # TODO: Implement other ways of generating initial infection
+  if (! debug) Z0 <- rbinom(num.nodes, 1, eta)
+  # Current infected nodes
+  Z <- Z0
+  # Transmissibility matrix W
+  # Assume independent homogenous Bernoulli processes on all nodes wih parameter tau
+  if (! debug) W <- matrix(rbinom(num.nodes^2, 1, tau), nrow = num.nodes, ncol = num.nodes)
+  diag(W) <- 0 # A node can't transmit infection to itself
+  # Multiply element-wise by sociomatrix to get all possible transmissions in
+  # this particular network instance
+  # If we didn't do this multiplication, W would contain transmissions that
+  # aren't possible in the network
+  W <- W * socio.mtx
+  W.net <- as.network(W, directed = TRUE, hyper = FALSE, loops = FALSE, multiple = FALSE)
+  # Initialize spread.edges to zero
+  # Elements of the vector which are 1 represented edges that spread infection
+  spread.edges <- rep(0, network.edgecount(socio.net))
+
+  if (verbose) {
+    cat("Y:\n")
+    print(socio.mtx)
+    cat("\nZ0: ", Z0, "\n")
+    cat("\nW:\n")
+    print(W)
+    cat("\n")
+  }
+
+  # Keep transmitting infection across network until no new infections
+  repeat {
+    # Perform next wave of infections
+    Z.next <- Z %*% W
+    Z.next <- as.vector(Z.next)
+    Z.next[which(Z.next & Z)] <- 0 # Only keep new infections
+    Z.next[which(Z.next > 0)] <- 1 # Truncate any positve values to 1
+
+    if (verbose) cat("Z.next: ", Z.next, "\n")
+
+    # Mark edges that spread infection in this wave
+    for (j in which(Z.next == 1)) {
+      # Nodes that could have spread the infection to node j
+      # Multiply by Z, only previously infected nodes can spread infection
+      in.nodes <- which(Z * W[ , j] > 0)
+      for (k in in.nodes) {
+        spread.edges[get.edgeIDs(socio.net, j, alter = k)] <- 1
+
+        if (verbose) {
+          cat("Infection spread on edge", "(", j, ",", k, ") with ID ")
+          print(get.edgeIDs(socio.net, j, alter = k))
+        }
+      }
+    }
+
+    # Update current infected nodes
+    Z <- Z + Z.next
+
+    if (verbose) cat("Z: ", Z, "\n")
+
+    # If no new infections, break out of loop
+    if (sum(Z.next) < 1) break
+  }
+
+  # Return data from infected network
+  set.vertex.attribute(socio.net, "initial.infection", Z0)
+  set.vertex.attribute(socio.net, "infected", Z)
+  set.edge.attribute(socio.net, "spread", spread.edges)
+
+  return(list(Z0 = Z0, Z = Z, W.net = W.net, infected.net = socio.net))
+}
 
 # Number of nodes in each class
-nodes.per.class <- c(25,5,25)
+#nodes.per.class <- c(25,5,25)
 # Matrix containing probability of link between class i and class j
-P.ij <- matrix(c(0.05, 0.04, 0, 0.04, 0.08, 0.04, 0, 0.04, 0.05), nrow = 3, ncol = 3)
-tau = 0.5
-eta = 0.05
-zeta = 0.015
+#P.ij <- matrix(c(0.05, 0.04, 0, 0.04, 0.08, 0.04, 0, 0.04, 0.05), nrow = 3, ncol = 3)
+#tau = 0.5
+#eta = 0.05
+#zeta = 0.015
 
-edge.prob.mtx <- create.edge.prob.mtx(nodes.per.class, P_ij)
-
+#edge.prob.mtx <- create.edge.prob.mtx(nodes.per.class, P.ij)
