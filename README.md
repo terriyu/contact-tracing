@@ -1,17 +1,23 @@
-R code for implementing contact tracing in social networks
+Contact tracing
+===============
+
+R code for implementing the contact tracing method in social networks. See
+Krista Gile's thesis in references below for more details about contact
+tracing.
 
 Dependencies
 ------------
 
-The statnet package is needed to run this code. If you want to run the tests,
-the testthat package must be installed.
+The `network` package is needed to run this code. It is part of a larger
+package called `statnet`.  If you want to run the tests, the `testthat` package
+must be installed.
 
 How to run the tests
 --------------------
-The testthat unit testing framework is used in this project.  The testthat
+The testthat unit testing framework is used in this project.  The `testthat`
 package can be downloaded and installed via the usual methods from CRAN. 
 
-Individual tests are in the tests/testthat subdirectory, while scripts to run
+Individual tests are in the `tests/testthat` subdirectory, while scripts to run
 multiple tests at a time are in the tests directory.
 
 To run all tests, run the following command in the root directory:
@@ -27,9 +33,10 @@ References
 ----------
 
 *Contact tracing*
-+ Krista Gile PhD thesis, Inference from Partially-Observed Network Data, University of Washington (2008) -- see Chapter 4
++ Krista Gile PhD thesis, Inference from Partially-Observed Network Data,
+  University of Washington (2008) -- see Chapter 4
 
-*statnet package*
+*statnet package (which contains the network package)*
 + [Official statnet site](http://www.statnet.org/)
 
 *testthat unit testing framework*

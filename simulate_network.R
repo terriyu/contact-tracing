@@ -1,9 +1,32 @@
-# Functions to simulate a network
+# Functions to simulate an infected (undirected) network
+
+# To simulate an infected network, do the following steps:
+#   1. Generate an undirected network [generate.network()]
+#   2. Spread the infection across the network [spread.infection()]
+
+# TODO: Other types of networks?  Directed networks?
 
 # Load network package without all the startup messages
 suppressMessages(library(network))
 
+# ---------------- FUNCTIONS ---------------------
+
 create.edge.prob.mtx <- function(nodes.per.class, P.ij) {
+  # Creates a matrix whose entries are probabilities that an edge will link 
+  # each pair of nodes
+  #
+  # Args:
+  #   nodes.per.class - vector containing the number of nodes in class 1,
+  #                     the number of nodes in class 2, etc.
+  #   P.ij - square, symmetric matrix containing probabilities; each entry
+  #          is the probability of a link between node class i and node class j 
+  #
+  # Returns:
+  #   edge.prob.mtx - Matrix whose entries are probabilities that an edge will
+  #                   link each pair of nodes. The dimension of the matrix is
+  #                   the total number of nodes over classes, i.e.
+  #                   sum(nodes.per.class)
+
   # Number of classes
   num.classes <- length(nodes.per.class)
   # Number of nodes in network
@@ -53,6 +76,18 @@ create.edge.prob.mtx <- function(nodes.per.class, P.ij) {
 }
 
 generate.network <- function(nodes.per.class, P.ij) {
+  # Generates a network simulated according to nodes.per.class and the
+  # probability matrix for links between nodes of different classes P.ij
+  #
+  # Args:
+  #   nodes.per.class - vector containing the number of nodes in class 1,
+  #                     the number of nodes in class 2, etc.
+  #   P.ij - square, symmetric matrix containing probabilities; each entry
+  #          is the probability of a link between node class i and node class j 
+  #
+  # Returns:
+  #   socio.net - network object containing the simulated network
+
   # Number of nodes in network
   num.nodes <- sum(nodes.per.class)
   # Create matrix containing prob each node is linked to another node
@@ -74,25 +109,43 @@ generate.network <- function(nodes.per.class, P.ij) {
   return(socio.net)
 }
 
-spread.infection <- function(socio.net, eta, tau, verbose = FALSE, debug = FALSE, Z0 = NULL, W = NULL) {
-  if ((debug) & is.null(Z0) & is.null(W)) {
-    stop("If debugging, need to specify values for Z0 and W")
+spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic = FALSE, Z0 = NULL, W = NULL) {
+  # Spread infection across given network and return infected network
+  #
+  # Args:
+  #   socio.net - uninfected, undirected network (needs to be network object)
+  #   eta - Bernoulli process parameter for initial infection 
+  #   tau - Bernoulli process parameter for generating transmission matrix
+  #   verbose - flag to print variables during infection process (for debugging)
+  #   nonstochastic - flag to use pre-determined values for Z0 and W (for debugging)
+  #   Z0 - (to be specified if nonstochastic = TRUE) vector of initial infected nodes
+  #   W - (to be specified if nonstochastic = TRUE) infection trasmission matrix
+  #
+  # Returns:
+  #   Z0 - vector of initial infected nodes (1 for infected, 0 for not infected) 
+  #   Z - vector of final infected nodes (1 for infected, 0 for not infected)
+  #   W.net - directed network object corresponding to infection transmission matrix
+  #   infected.net - infected network (network object) with edge and vertex attributes describing infection
+
+  # Error checking: make sure Z0 and W are specified if in nonstochastic mode
+  if ((nonstochastic) & is.null(Z0) & is.null(W)) {
+    stop("If nonstochastic flag is TRUE, need to specify values for Z0 and W")
   }
 
   # Number of nodes in network
   num.nodes <- network.size(socio.net)
   # Extract sociomatrix from network
   socio.mtx <- as.sociomatrix(socio.net)
-  # Generate initial infection Z0
+  # Generate initial infection Z0 (1 for infected, 0 for not infected)
   # Multiple ways to do this: see tosource.R
   # Assume independent homogenous Bernoulli processes on all nodes with parameter eta
   # TODO: Implement other ways of generating initial infection
-  if (! debug) Z0 <- rbinom(num.nodes, 1, eta)
+  if (! nonstochastic) Z0 <- rbinom(num.nodes, 1, eta)
   # Current infected nodes
   Z <- Z0
-  # Transmissibility matrix W
+  # Transmissibility matrix W (1 for edge that can transmit infection, 0 otherwise)
   # Assume independent homogenous Bernoulli processes on all nodes wih parameter tau
-  if (! debug) W <- matrix(rbinom(num.nodes^2, 1, tau), nrow = num.nodes, ncol = num.nodes)
+  if (! nonstochastic) W <- matrix(rbinom(num.nodes^2, 1, tau), nrow = num.nodes, ncol = num.nodes)
   diag(W) <- 0 # A node can't transmit infection to itself
   # Multiply element-wise by sociomatrix to get all possible transmissions in
   # this particular network instance
@@ -129,6 +182,7 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, debug = FALSE
       # Multiply by Z, only previously infected nodes can spread infection
       in.nodes <- which(Z * W[ , j] > 0)
       for (k in in.nodes) {
+        # Mark edge corresponding to nodes j and k as spreading infection
         spread.edges[get.edgeIDs(socio.net, j, alter = k)] <- 1
 
         if (verbose) {
@@ -147,11 +201,12 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, debug = FALSE
     if (sum(Z.next) < 1) break
   }
 
-  # Return data from infected network
+  # Add infection attributes to network
   set.vertex.attribute(socio.net, "initial.infection", Z0)
   set.vertex.attribute(socio.net, "infected", Z)
   set.edge.attribute(socio.net, "spread", spread.edges)
 
+  # Return data from infected network
   return(list(Z0 = Z0, Z = Z, W.net = W.net, infected.net = socio.net))
 }
 
