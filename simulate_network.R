@@ -139,13 +139,17 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
   # Generate initial infection Z0 (1 for infected, 0 for not infected)
   # Multiple ways to do this: see tosource.R
   # Assume independent homogenous Bernoulli processes on all nodes with parameter eta
-  # TODO: Implement other ways of generating initial infection
-  if (! nonstochastic) Z0 <- rbinom(num.nodes, 1, eta)
+  # TODO: Implement other ways of generating initial infection [see tosource.r spread()]
+  if (! nonstochastic) {
+    Z0 <- rbinom(num.nodes, 1, eta)
+  }
   # Current infected nodes
   Z <- Z0
   # Transmissibility matrix W (1 for edge that can transmit infection, 0 otherwise)
   # Assume independent homogenous Bernoulli processes on all nodes wih parameter tau
-  if (! nonstochastic) W <- matrix(rbinom(num.nodes^2, 1, tau), nrow = num.nodes, ncol = num.nodes)
+  if (! nonstochastic) {
+    W <- matrix(rbinom(num.nodes^2, 1, tau), nrow = num.nodes, ncol = num.nodes)
+  }
   diag(W) <- 0 # A node can't transmit infection to itself
   # Multiply element-wise by sociomatrix to get all possible transmissions in
   # this particular network instance
@@ -174,7 +178,9 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
     Z.next[which(Z.next & Z)] <- 0 # Only keep new infections
     Z.next[which(Z.next > 0)] <- 1 # Truncate any positve values to 1
 
-    if (verbose) cat("Z.next: ", Z.next, "\n")
+    if (verbose) {
+      cat("Z.next: ", Z.next, "\n")
+    }
 
     # Mark edges that spread infection in this wave
     for (j in which(Z.next == 1)) {
@@ -195,10 +201,14 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
     # Update current infected nodes
     Z <- Z + Z.next
 
-    if (verbose) cat("Z: ", Z, "\n")
+    if (verbose) {
+      cat("Z: ", Z, "\n")
+    }
 
     # If no new infections, break out of loop
-    if (sum(Z.next) < 1) break
+    if (sum(Z.next) < 1) {
+      break
+    }
   }
 
   # Add infection attributes to network
@@ -207,6 +217,7 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
   set.edge.attribute(socio.net, "spread", spread.edges)
 
   # Return data from infected network
+  # FIXME: Seems redundant to return Z0 and Z if they are already attributes in infected.net 
   return(list(Z0 = Z0, Z = Z, W.net = W.net, infected.net = socio.net))
 }
 
