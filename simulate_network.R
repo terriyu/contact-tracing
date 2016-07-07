@@ -94,6 +94,7 @@ generate.network <- function(nodes.per.class, P.ij) {
   prob.mtx <- create.edge.prob.mtx(nodes.per.class, P.ij)
   # Set lower triangle to zero, so we only generate a link between i and j once
   prob.mtx[lower.tri(prob.mtx)] <- 0
+
   # Create network
   # Only generate links for upper triangle to ensure consistency
   # We only want to generate a link between i and j once
@@ -125,7 +126,19 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
   #   Z0 - vector of initial infected nodes (1 for infected, 0 for not infected) 
   #   Z - vector of final infected nodes (1 for infected, 0 for not infected)
   #   W.net - directed network object corresponding to infection transmission matrix
-  #   infected.net - infected network (network object) with edge and vertex attributes describing infection
+  #   disease.net - disease network (network object) with edge and vertex attributes describing infection
+
+  # Error checking for eta and tau parameters
+  if (! is.null(eta)) {
+    if ((eta < 0) | (eta > 1)) {
+      stop("Bernoulli process parameter eta needs to be between 0 and 1")
+    }
+  }
+  if (! is.null(tau)) {
+    if ((tau < 0) | (tau > 1)) {
+      stop("Bernoulli process parameter tau needs to be between 0 and 1")
+    }
+  }
 
   # Error checking: make sure Z0 and W are specified if in nonstochastic mode
   if ((nonstochastic) & is.null(Z0) & is.null(W)) {
@@ -136,6 +149,7 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
   num.nodes <- network.size(socio.net)
   # Extract sociomatrix from network
   socio.mtx <- as.sociomatrix(socio.net)
+
   # Generate initial infection Z0 (1 for infected, 0 for not infected)
   # Multiple ways to do this: see tosource.R
   # Assume independent homogenous Bernoulli processes on all nodes with parameter eta
@@ -143,8 +157,7 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
   if (! nonstochastic) {
     Z0 <- rbinom(num.nodes, 1, eta)
   }
-  # Current infected nodes
-  Z <- Z0
+
   # Transmissibility matrix W (1 for edge that can transmit infection, 0 otherwise)
   # Assume independent homogenous Bernoulli processes on all nodes wih parameter tau
   if (! nonstochastic) {
@@ -157,6 +170,8 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
   # aren't possible in the network
   W <- W * socio.mtx
   W.net <- as.network(W, directed = TRUE, hyper = FALSE, loops = FALSE, multiple = FALSE)
+
+  # spread.edges are the edges that transmitted the infection
   # Initialize spread.edges to zero
   # Elements of the vector which are 1 represented edges that spread infection
   spread.edges <- rep(0, network.edgecount(socio.net))
@@ -170,10 +185,15 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
     cat("\n")
   }
 
+  # Current infected nodes
+  Z <- Z0
+  # Infected nodes from previous wave
+  Z.prev <- Z0
+ 
   # Keep transmitting infection across network until no new infections
   repeat {
     # Perform next wave of infections
-    Z.next <- Z %*% W
+    Z.next <- Z.prev %*% W
     Z.next <- as.vector(Z.next)
     Z.next[which(Z.next & Z)] <- 0 # Only keep new infections
     Z.next[which(Z.next > 0)] <- 1 # Truncate any positve values to 1
@@ -182,11 +202,12 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
       cat("Z.next: ", Z.next, "\n")
     }
 
+    # FIXME: Make calculation of spread.edges optional??
     # Mark edges that spread infection in this wave
     for (j in which(Z.next == 1)) {
       # Nodes that could have spread the infection to node j
-      # Multiply by Z, only previously infected nodes can spread infection
-      in.nodes <- which(Z * W[ , j] > 0)
+      # Multiply by Z.prev, only previously infected nodes can spread infection
+      in.nodes <- which(Z.prev * W[ , j] > 0)
       for (k in in.nodes) {
         # Mark edge corresponding to nodes j and k as spreading infection
         spread.edges[get.edgeIDs(socio.net, j, alter = k)] <- 1
@@ -198,8 +219,9 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
       }
     }
 
-    # Update current infected nodes
+    # Update infected nodes
     Z <- Z + Z.next
+    Z.prev <- Z.next
 
     if (verbose) {
       cat("Z: ", Z, "\n")
@@ -218,7 +240,7 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
 
   # Return data from infected network
   # FIXME: Seems redundant to return Z0 and Z if they are already attributes in infected.net 
-  return(list(Z0 = Z0, Z = Z, W.net = W.net, infected.net = socio.net))
+  return(list(Z0 = Z0, Z = Z, W.net = W.net, disease.net = socio.net))
 }
 
 # Number of nodes in each class
