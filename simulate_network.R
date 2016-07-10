@@ -110,13 +110,15 @@ generate.network <- function(nodes.per.class, P.ij) {
   return(socio.net)
 }
 
-spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic = FALSE, Z0 = NULL, W = NULL) {
+spread.infection <- function(socio.net, eta, tau, initial.infect = "nodes", num.infect = NULL, verbose = FALSE, nonstochastic = FALSE, Z0 = NULL, W = NULL) {
   # Spread infection across given network and return infected network
   #
   # Args:
   #   socio.net - uninfected, undirected network (needs to be network object)
   #   eta - Bernoulli process parameter for initial infection
   #   tau - Bernoulli process parameter for generating transmission matrix
+  #   initial.infect - string specifying method to use for initial infection "nodes", "nodes.fixed", or "edges"
+  #   num.infect - number of nodes or edges in initial infection (fixed number)
   #   verbose - flag to print variables during infection process (for debugging)
   #   nonstochastic - flag to use pre-determined values for Z0 and W (for debugging)
   #   Z0 - (to be specified if nonstochastic = TRUE) vector of initial infected nodes
@@ -141,21 +143,47 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
   }
 
   # Error checking: make sure Z0 and W are specified if in nonstochastic mode
-  if (! ((nonstochastic) & (! is.null(Z0)) & (! is.null(W)))) {
-    stop("If nonstochastic flag is TRUE, need to specify values for Z0 and W")
+  if (nonstochastic) {
+    if (is.null(Z0) | is.null(W)) {
+      stop("If nonstochastic flag is TRUE, need to specify values for Z0 and W")
+    }
   }
 
   # Number of nodes in network
   num.nodes <- network.size(socio.net)
+  # Number of edges in network
+  num.edges <- network.edgecount(socio.net)
   # Extract sociomatrix from network
   socio.mtx <- as.sociomatrix(socio.net)
 
   # Generate initial infection Z0 (1 for infected, 0 for not infected)
   # Multiple ways to do this: see tosource.R
-  # Assume independent homogenous Bernoulli processes on all nodes with parameter eta
   # TODO: Implement other ways of generating initial infection [see tosource.r spread()]
+  #       In particular, infecting a fixed number of edges is not implemented
   if (! nonstochastic) {
-    Z0 <- rbinom(num.nodes, 1, eta)
+    if (initial.infect == "nodes") {
+      # Independent Bernoulli infection process on all nodes
+      Z0 <- rbinom(num.nodes, 1, eta)
+    } else if ((initial.infect == "nodes.fixed") & (! is.null(num.infect))) {
+      # Randomly pick num.infect nodes to infect
+      Z0 <- rep(0, num.nodes)
+      Z0[sample(1:num.nodes, num.infect)] <- 1
+    } else if (initial.infect == "edges") {
+      # Independent Bernoulli infection process on all edges
+      # Pick edges to infect
+      edge.infect <- rbinom(num.edges, 1, eta)
+      # Pick which end of edge is infected
+      end.infect <- rbinom(num.edges, 1, 0.5)
+      # Matrix whose rows are edges specified by (node i, node j)
+      edge.mat <- as.matrix(socio.net, matrix.type = "edgelist")
+      # Nodes corresponding to infection process
+      nodes.infect.idx <- unique(c(edge.mat[((edge.infect == 1) & (end.infect == 0)), 1], edge.mat[((edge.infect == 1) & (end.infect == 1)), 2]))
+      # Set infected nodes
+      Z0 <- rep(0, num.nodes)
+      Z0[nodes.infect.idx] <- 1
+    } else {
+      stop("initial.infect incorrectly specified")
+    }
   }
 
   # Transmissibility matrix W (1 for edge that can transmit infection, 0 otherwise)

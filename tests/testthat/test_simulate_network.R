@@ -53,12 +53,19 @@ test_that("Test spread.infection", {
   expect_error(spread.infection(net, NULL, 100), regexp = "Bernoulli process parameter tau needs to be between 0 and 1")
 
   # Test error checking for Z0 and W when nonstochastic flag is set to TRUE
-  expect_error(spread.infection(net, NULL, NULL, FALSE, TRUE), regexp = "If nonstochastic flag is TRUE, need to specify values for Z0 and W")
-  expect_error(spread.infection(net, NULL, NULL, FALSE, TRUE, Z0), regexp = "If nonstochastic flag is TRUE, need to specify values for Z0 and W")
-  expect_error(spread.infection(net, NULL, NULL, FALSE, TRUE, NULL, W), regexp = "If nonstochastic flag is TRUE, need to specify values for Z0 and W")
+  expect_error(spread.infection(net, NULL, NULL, "nodes", NULL, FALSE, TRUE), regexp = "If nonstochastic flag is TRUE, need to specify values for Z0 and W")
+  expect_error(spread.infection(net, NULL, NULL, "nodes", NULL, FALSE, TRUE, Z0), regexp = "If nonstochastic flag is TRUE, need to specify values for Z0 and W")
+  expect_error(spread.infection(net, NULL, NULL, "nodes", NULL, FALSE, TRUE, NULL, W), regexp = "If nonstochastic flag is TRUE, need to specify values for Z0 and W")
+
+  # Test error checking for initial.infect variable
+  expect_error(spread.infection(net, 0.2, 0.1, "invalid"), regexp = "initial.infect incorrectly specified")
+
+  # Test that number of infected nodes in Z0 matches given number, if number of infected nodes is fixed ahead of time
+  result <- spread.infection(net, NULL, 0.1, "nodes.fixed", 3)
+  expect_equal(sum(result$Z0), 3)
 
   # Test that spreading infection with fixed Z0 and W gives expected results
-  result <- spread.infection(net, NULL, NULL, FALSE, TRUE, Z0, W)
+  result <- spread.infection(net, NULL, NULL, "nodes", NULL, FALSE, TRUE, Z0, W)
   expect_equal(result$Z0, Z0)
   expect_equal(result$Z, Z.expect)
   expect_true(all(as.sociomatrix(result$W.net) == W))
