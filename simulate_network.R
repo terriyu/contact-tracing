@@ -165,6 +165,9 @@ spread.infection <- function(socio.net, eta, tau, initial.infect = "nodes", num.
       # Independent Bernoulli infection process on all nodes
       Z0 <- rbinom(num.nodes, 1, eta)
     } else if ((initial.infect == "nodes.fixed") & (! is.null(num.infect))) {
+      if ((num.infect < 0) | (num.infect > num.nodes)) {
+        stop("num.infect must be between 0 and the number of nodes in the network")
+      }
       # Randomly pick num.infect nodes to infect
       Z0 <- rep(0, num.nodes)
       Z0[sample(1:num.nodes, num.infect)] <- 1
