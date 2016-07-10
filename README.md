@@ -20,7 +20,12 @@ package can be downloaded and installed via the usual methods from CRAN.
 Individual tests are in the `tests/testthat` subdirectory, while scripts to run
 multiple tests at a time are in the tests directory.
 
-To run all tests, run the following command in the root directory:
+To run all tests, there are two ways to do it:
+
+* (Command line) run the following command in the root directory:
+`Rscript tests/run_all_tests.R`
+
+* (In a R session) run the following command in the root directory:
 `source('tests/run_all_tests.R')`
 
 To run an individual test:
