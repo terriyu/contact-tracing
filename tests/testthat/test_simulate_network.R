@@ -41,17 +41,28 @@ test_that("Test generate.network", {
 })
 
 test_that("Test spread.infection", {
+  set.seed(137)
   net <- network(matrix(c(0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0), nrow = 6, ncol = 6), directed = FALSE)
   W <- matrix(c(0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), nrow = 6, ncol = 6)
   Z0 <- c(1,0,0,0,0,0)
-  result <- spread.infection(net, NULL, NULL, FALSE, TRUE, Z0, W)
-  Z <- c(1, 1, 1, 1, 0, 0)
+  Z.expect <- c(1, 1, 1, 1, 0, 0) # Expected value for Z after infection has been spread over network
+
+  # Test error checking for valid Bernoulli parameter eta
+  expect_error(spread.infection(net, -9, NULL), regexp = "Bernoulli process parameter eta needs to be between 0 and 1")
+  # Test error checking for valid Bernoulli parameter tau
+  expect_error(spread.infection(net, NULL, 100), regexp = "Bernoulli process parameter tau needs to be between 0 and 1")
+
+  # Test error checking for Z0 and W when nonstochastic flag is set to TRUE
+  expect_error(spread.infection(net, NULL, NULL, FALSE, TRUE), regexp = "If nonstochastic flag is TRUE, need to specify values for Z0 and W")
+  expect_error(spread.infection(net, NULL, NULL, FALSE, TRUE, Z0), regexp = "If nonstochastic flag is TRUE, need to specify values for Z0 and W")
+  expect_error(spread.infection(net, NULL, NULL, FALSE, TRUE, NULL, W), regexp = "If nonstochastic flag is TRUE, need to specify values for Z0 and W")
 
   # Test that spreading infection with fixed Z0 and W gives expected results
+  result <- spread.infection(net, NULL, NULL, FALSE, TRUE, Z0, W)
   expect_equal(result$Z0, Z0)
-  expect_equal(result$Z, Z)
+  expect_equal(result$Z, Z.expect)
   expect_true(all(as.sociomatrix(result$W.net) == W))
   expect_equal(get.vertex.attribute(result$disease.net, "initial.infection"), Z0)
-  expect_equal(get.vertex.attribute(result$disease.net, "infected"), Z)
+  expect_equal(get.vertex.attribute(result$disease.net, "infected"), Z.expect)
   expect_equal(get.edge.attribute(result$disease.net, "spread"), c(1, 1, 1, 0))
 })

@@ -12,14 +12,14 @@ suppressMessages(library(network))
 # ---------------- FUNCTIONS ---------------------
 
 create.edge.prob.mtx <- function(nodes.per.class, P.ij) {
-  # Creates a matrix whose entries are probabilities that an edge will link 
+  # Creates a matrix whose entries are probabilities that an edge will link
   # each pair of nodes
   #
   # Args:
   #   nodes.per.class - vector containing the number of nodes in class 1,
   #                     the number of nodes in class 2, etc.
   #   P.ij - square, symmetric matrix containing probabilities; each entry
-  #          is the probability of a link between node class i and node class j 
+  #          is the probability of a link between node class i and node class j
   #
   # Returns:
   #   edge.prob.mtx - Matrix whose entries are probabilities that an edge will
@@ -83,7 +83,7 @@ generate.network <- function(nodes.per.class, P.ij) {
   #   nodes.per.class - vector containing the number of nodes in class 1,
   #                     the number of nodes in class 2, etc.
   #   P.ij - square, symmetric matrix containing probabilities; each entry
-  #          is the probability of a link between node class i and node class j 
+  #          is the probability of a link between node class i and node class j
   #
   # Returns:
   #   socio.net - network object containing the simulated network
@@ -115,7 +115,7 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
   #
   # Args:
   #   socio.net - uninfected, undirected network (needs to be network object)
-  #   eta - Bernoulli process parameter for initial infection 
+  #   eta - Bernoulli process parameter for initial infection
   #   tau - Bernoulli process parameter for generating transmission matrix
   #   verbose - flag to print variables during infection process (for debugging)
   #   nonstochastic - flag to use pre-determined values for Z0 and W (for debugging)
@@ -123,7 +123,7 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
   #   W - (to be specified if nonstochastic = TRUE) infection trasmission matrix
   #
   # Returns:
-  #   Z0 - vector of initial infected nodes (1 for infected, 0 for not infected) 
+  #   Z0 - vector of initial infected nodes (1 for infected, 0 for not infected)
   #   Z - vector of final infected nodes (1 for infected, 0 for not infected)
   #   W.net - directed network object corresponding to infection transmission matrix
   #   disease.net - disease network (network object) with edge and vertex attributes describing infection
@@ -141,7 +141,7 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
   }
 
   # Error checking: make sure Z0 and W are specified if in nonstochastic mode
-  if ((nonstochastic) & is.null(Z0) & is.null(W)) {
+  if (! ((nonstochastic) & (! is.null(Z0)) & (! is.null(W)))) {
     stop("If nonstochastic flag is TRUE, need to specify values for Z0 and W")
   }
 
@@ -189,7 +189,7 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
   Z <- Z0
   # Infected nodes from previous wave
   Z.prev <- Z0
- 
+
   # Keep transmitting infection across network until no new infections
   repeat {
     # Perform next wave of infections
@@ -239,7 +239,7 @@ spread.infection <- function(socio.net, eta, tau, verbose = FALSE, nonstochastic
   set.edge.attribute(socio.net, "spread", spread.edges)
 
   # Return data from infected network
-  # FIXME: Seems redundant to return Z0 and Z if they are already attributes in infected.net 
+  # FIXME: Seems redundant to return Z0 and Z if they are already attributes in infected.net
   return(list(Z0 = Z0, Z = Z, W.net = W.net, disease.net = socio.net))
 }
 
