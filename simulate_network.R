@@ -117,7 +117,7 @@ spread.infection <- function(socio.net, eta, tau, initial.infect = "nodes", num.
   #   socio.net - uninfected, undirected network (needs to be network object)
   #   eta - Bernoulli process parameter for initial infection
   #   tau - Bernoulli process parameter for generating transmission matrix
-  #   initial.infect - string specifying method to use for initial infection "nodes", "nodes.fixed", or "edges"
+  #   initial.infect - string specifying method to use for initial infection "nodes", "nodes_fixed", or "edges"
   #   num.infect - number of nodes or edges in initial infection (fixed number)
   #   verbose - flag to print variables during infection process (for debugging)
   #   nonstochastic - flag to use pre-determined values for Z0 and W (for debugging)
@@ -164,7 +164,7 @@ spread.infection <- function(socio.net, eta, tau, initial.infect = "nodes", num.
     if (initial.infect == "nodes") {
       # Independent Bernoulli infection process on all nodes
       Z0 <- rbinom(num.nodes, 1, eta)
-    } else if ((initial.infect == "nodes.fixed") & (! is.null(num.infect))) {
+    } else if ((initial.infect == "nodes_fixed") & (! is.null(num.infect))) {
       if ((num.infect < 0) | (num.infect > num.nodes)) {
         stop("num.infect must be between 0 and the number of nodes in the network")
       }
@@ -226,8 +226,8 @@ spread.infection <- function(socio.net, eta, tau, initial.infect = "nodes", num.
     # Perform next wave of infections
     Z.next <- Z.prev %*% W
     Z.next <- as.vector(Z.next)
-    Z.next[which(Z.next & Z)] <- 0 # Only keep new infections
-    Z.next[which(Z.next > 0)] <- 1 # Truncate any positve values to 1
+    Z.next[Z.next & Z] <- 0 # Only keep new infections
+    Z.next[Z.next > 0] <- 1 # Truncate any positve values to 1
 
     if (verbose) {
       cat("Z.next: ", Z.next, "\n")
@@ -273,13 +273,3 @@ spread.infection <- function(socio.net, eta, tau, initial.infect = "nodes", num.
   # FIXME: Seems redundant to return Z0 and Z if they are already attributes in infected.net
   return(list(Z0 = Z0, Z = Z, W.net = W.net, disease.net = socio.net))
 }
-
-# Number of nodes in each class
-#nodes.per.class <- c(25,5,25)
-# Matrix containing probability of link between class i and class j
-#P.ij <- matrix(c(0.05, 0.04, 0, 0.04, 0.08, 0.04, 0, 0.04, 0.05), nrow = 3, ncol = 3)
-#tau = 0.5
-#eta = 0.05
-#zeta = 0.015
-
-#edge.prob.mtx <- create.edge.prob.mtx(nodes.per.class, P.ij)
