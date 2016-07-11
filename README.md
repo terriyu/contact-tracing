@@ -5,6 +5,14 @@ R code for implementing the contact tracing method in social networks. See
 Krista Gile's thesis in references below for more details about contact
 tracing.
 
+Features
+--------
+* Simulate a network and spread an infection across it
+* Perform contact tracing sampling on a simulated infected network
+* (not yet implemented) Markov Chain Monte Carlo Maximum Likelihood Estimation
+  (MCMCMLE) for a Exponential Random Graph Model (ERGM), given a contact
+  tracing sample
+
 Dependencies
 ------------
 
@@ -15,7 +23,7 @@ must be installed.
 How to run the tests
 --------------------
 The testthat unit testing framework is used in this project.  The `testthat`
-package can be downloaded and installed via the usual methods from CRAN. 
+package can be downloaded and installed via the usual methods from CRAN.
 
 Individual tests are in the `tests/testthat` subdirectory, while scripts to run
 multiple tests at a time are in the tests directory.
