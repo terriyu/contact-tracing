@@ -1,6 +1,6 @@
 # Contact tracing sampling
 
-# Sampling designs are in Chapter 4.6
+# Sampling designs are in Chapter 4.6 of Krista Gile's PhD thesis
 
 # Load network package without all the startup messages
 suppressMessages(library(network))
@@ -38,17 +38,17 @@ suppressMessages(library(network))
   if (design == "infected_only") {
     # Only sample infected nodes
     S.next <- (S.prev %*% transmission.mtx) * Z * (1 - S)
-    S.next <- as.vector(S.next) 
+    S.next <- as.vector(S.next)
     S.next[S.next > 0] <- 1
   } else if ((design == "infected_and_edge_units") | (design == "contacts_of_edge_units")) {
     # Sample both infected and uninfected nodes but only trace infected nodes
     S.next <- ((Z * S.prev) %*% transmission.mtx) * (1 - S)
-    S.next <- as.vector(S.next) 
+    S.next <- as.vector(S.next)
     S.next[S.next > 0] <- 1
   } else if (design == "full_contact_components") {
     # Sample and trace both infected and uninfected nodes
     S.next <- (S.prev %*% transmission.mtx) * (1 - S)
-    S.next <- as.vector(S.next) 
+    S.next <- as.vector(S.next)
     S.next[S.next > 0] <- 1
   } else {
     stop("Invalid value specified for design")
@@ -63,13 +63,13 @@ ct.sample <- function(disease.net, sigma, design, size.S0 = NULL, num.waves = NU
   #
   # Args:
   #   disease.net - network with infection attributes
-  #   sigma - Bernoulli parameter for initial sampling process 
+  #   sigma - Bernoulli parameter for initial sampling process
   #   design - contact tracing design to use: "infected_only", "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
-  #   size.S0 - [optional] fix size of initial sample to avoid returning empty sample 
+  #   size.S0 - [optional] fix size of initial sample to avoid returning empty sample
   #   num.waves - [optional] number of waves to use in sampling (NULL if you keep sampling until no new nodes are sampled)
   #   p.trace.infected - [optional] Bernoulli parameter for tracing infected contact
   #   p.trace.uninfected - [optional] Bernoulli parameter for tracing uninfected contact
-  #   verbose - [optional] flag to print variables during sampling process (for debugging) 
+  #   verbose - [optional] flag to print variables during sampling process (for debugging)
   #   S0.fixed - [optional] nodes in initial sample (only use for debugging/testing)
   #
   # Returns:
@@ -98,11 +98,11 @@ ct.sample <- function(disease.net, sigma, design, size.S0 = NULL, num.waves = NU
 
   # Number of nodes in network
   num.nodes <- network.size(disease.net)
-  # Extract infected nodes in network 
+  # Extract infected nodes in network
   Z <- get.vertex.attribute(disease.net, "infected")
   # Extract adjacency matrix for disease network
   socio.mtx <- as.sociomatrix(disease.net)
- 
+
   # Initial sample
   if (! is.null(S0.fixed)) {
     # Initial sample is completely specified ahead of time
@@ -127,8 +127,8 @@ ct.sample <- function(disease.net, sigma, design, size.S0 = NULL, num.waves = NU
 
   # Current sample
   S <- S0
-  # Previous wave of samples 
-  S.prev <- S0 
+  # Previous wave of samples
+  S.prev <- S0
 
   if (verbose) {
     cat("S0:\n")
@@ -155,7 +155,7 @@ ct.sample <- function(disease.net, sigma, design, size.S0 = NULL, num.waves = NU
     }
 
     # Sample for num.waves
-    for (i in 1:num.waves) { 
+    for (i in 1:num.waves) {
       S.next <- .sample.next(S.prev, S, Z, socio.mtx, design, p.trace.infected, p.trace.uninfected)
 
       if (verbose) {
@@ -171,4 +171,3 @@ ct.sample <- function(disease.net, sigma, design, size.S0 = NULL, num.waves = NU
 
   return(list(S0 = S0, S = S))
 }
-

@@ -26,8 +26,7 @@ suppressMessages(library(network))
   # Returns:
   #   edge.prob.mtx - Matrix whose entries are probabilities that an edge will
   #                   link each pair of nodes. The dimension of the matrix is
-  #                   the total number of nodes over classes, i.e.
-  #                   sum(nodes.per.class)
+  #                   the total number of nodes over classes
 
   # Number of classes
   num.classes <- length(nodes.per.class)
@@ -43,12 +42,12 @@ suppressMessages(library(network))
     node.class.vec <- rep(1:num.classes, times = nodes.per.class)
     # Row and column indices for each entry in a num.nodes x num.nodes matrix
     # Hack for using mapply
-    row.indices = rep(1:num.nodes, each = num.nodes)
-    col.indices = rep(1:num.nodes, times = num.nodes)
+    row.indices <- rep(1:num.nodes, each = num.nodes)
+    col.indices <- rep(1:num.nodes, times = num.nodes)
     # For each pair of nodes i and j, compute probability of link between them
     # The probability is determined by the classes of node i and j
     # We use mapply to vectorize this calculation and avoid for loops
-    edge.prob.mtx <- matrix(mapply(function(i,j) P.ij[node.class.vec[i], node.class.vec[j]], row.indices, col.indices), nrow = num.nodes, ncol = num.nodes)
+    edge.prob.mtx <- matrix(mapply(function(i, j) P.ij[node.class.vec[i], node.class.vec[j]], row.indices, col.indices), nrow = num.nodes, ncol = num.nodes)
   }
   # Set diagonal of matrix to zero (node can't be linked to itself)
   diag(edge.prob.mtx) <- 0
