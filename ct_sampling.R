@@ -5,7 +5,7 @@
 # Load network package without all the startup messages
 suppressMessages(library(network))
 
-.sample.next <- function(S.prev, S, Z, socio.mtx, design, p.trace.infected, p.trace.uninfected) {
+.sample.next <- function(S.prev, S, Z, socio.mtx, ct.design, p.trace.infected, p.trace.uninfected) {
   # Return next sample in contact tracing process, given sample from previous wave and current sample
   #
   # NOTE: This is a private helper function for ct.sample()
@@ -15,7 +15,7 @@ suppressMessages(library(network))
   #   S - current sample as vector
   #   Z - infected nodes as vector
   #   socio.mtx - adjacency matrix corresponding to socio matrix
-  #   design - contact tracing design to use: "infected_only", "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
+  #   ct.design - contact tracing design to use: "infected_only", "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
   #   p.trace.infected - Bernoulli parameter for tracing infected contact
   #   p.trace.uninfected - Bernoulli parameter for tracing uninfected contact
   #
@@ -35,36 +35,36 @@ suppressMessages(library(network))
   }
 
   # Compute next sample
-  if (design == "infected_only") {
+  if (ct.design == "infected_only") {
     # Only sample infected nodes
     S.next <- (S.prev %*% transmission.mtx) * Z * (1 - S)
     S.next <- as.vector(S.next)
     S.next[S.next > 0] <- 1
-  } else if ((design == "infected_and_edge_units") | (design == "contacts_of_edge_units")) {
+  } else if ((ct.design == "infected_and_edge_units") | (ct.design == "contacts_of_edge_units")) {
     # Sample both infected and uninfected nodes but only trace infected nodes
     S.next <- ((Z * S.prev) %*% transmission.mtx) * (1 - S)
     S.next <- as.vector(S.next)
     S.next[S.next > 0] <- 1
-  } else if (design == "full_contact_components") {
+  } else if (ct.design == "full_contact_components") {
     # Sample and trace both infected and uninfected nodes
     S.next <- (S.prev %*% transmission.mtx) * (1 - S)
     S.next <- as.vector(S.next)
     S.next[S.next > 0] <- 1
   } else {
-    stop("Invalid value specified for design")
+    stop("Invalid value specified for ct.design")
   }
 
   # Return next sample
   return(S.next)
 }
 
-ct.sample <- function(disease.net, sigma, design, size.S0 = NULL, num.waves = NULL, p.trace.infected = NULL, p.trace.uninfected = NULL, verbose = FALSE, S0.fixed = NULL) {
+ct.sample <- function(disease.net, sigma, ct.design, size.S0 = NULL, num.waves = NULL, p.trace.infected = NULL, p.trace.uninfected = NULL, verbose = FALSE, S0.fixed = NULL) {
   # Perform contact tracing sample of an infected network
   #
   # Args:
   #   disease.net - network with infection attributes
   #   sigma - Bernoulli parameter for initial sampling process
-  #   design - contact tracing design to use: "infected_only", "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
+  #   ct.design - contact tracing design to use: "infected_only", "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
   #   size.S0 - [optional] fix size of initial sample to avoid returning empty sample
   #   num.waves - [optional] number of waves to use in sampling (NULL if you keep sampling until no new nodes are sampled)
   #   p.trace.infected - [optional] Bernoulli parameter for tracing infected contact
@@ -119,8 +119,8 @@ ct.sample <- function(disease.net, sigma, design, size.S0 = NULL, num.waves = NU
     S0 <- rbinom(num.nodes, 1, sigma)
   }
 
-  # For "infected_only" design, only keep infected nodes from initial sample
-  if (design == "infected_only") {
+  # For "infected_only" ct.design, only keep infected nodes from initial sample
+  if (ct.design == "infected_only") {
     # Only keep infected nodes
     S0 <- S0 * Z
   }
@@ -138,7 +138,7 @@ ct.sample <- function(disease.net, sigma, design, size.S0 = NULL, num.waves = NU
   if (is.null(num.waves)) {
     # Keep sampling until no new nodes sampled
     while (sum(S.prev) > 0) {
-      S.next <- .sample.next(S.prev, S, Z, socio.mtx, design, p.trace.infected, p.trace.uninfected)
+      S.next <- .sample.next(S.prev, S, Z, socio.mtx, ct.design, p.trace.infected, p.trace.uninfected)
 
       if (verbose) {
         cat("S.next:\n")
@@ -156,7 +156,7 @@ ct.sample <- function(disease.net, sigma, design, size.S0 = NULL, num.waves = NU
 
     # Sample for num.waves
     for (i in 1:num.waves) {
-      S.next <- .sample.next(S.prev, S, Z, socio.mtx, design, p.trace.infected, p.trace.uninfected)
+      S.next <- .sample.next(S.prev, S, Z, socio.mtx, ct.design, p.trace.infected, p.trace.uninfected)
 
       if (verbose) {
         cat("S.next:\n")

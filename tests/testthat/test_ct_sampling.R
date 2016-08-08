@@ -14,7 +14,7 @@ test_that("Test .sample.next", {
   # Test error checking
   S.prev <- c(0, 0, 1, 0, 0, 0)
   S <- c(0, 0, 1, 1, 1, 0)
-  expect_error(.sample.next(S.prev, S, Z, socio.mtx, "invalid_design", NULL, NULL), regexp = "Invalid value specified for design")
+  expect_error(.sample.next(S.prev, S, Z, socio.mtx, "invalid_design", NULL, NULL), regexp = "Invalid value specified for ct.design")
 
   # Test each of the 4 sampling designs
   S.prev <- c(0, 0, 1, 0, 0, 0)
@@ -83,7 +83,7 @@ test_that("Test ct.sample", {
   expect_error(ct.sample(disease.net, 0.2, "infected_only", 0), regexp = "size.S0 must be between 1 and number of nodes")
   expect_error(ct.sample(disease.net, 0.2, "infected_only", 10), regexp = "size.S0 must be between 1 and number of nodes")
   expect_error(ct.sample(disease.net, 0.2, "infected_only", NULL, 0), regexp = "Number of waves needs to be at least 1")
-  expect_error(ct.sample(disease.net, 0.2, "invalid_design"), regexp = "Invalid value specified for design")
+  expect_error(ct.sample(disease.net, 0.2, "invalid_design"), regexp = "Invalid value specified for ct.design")
 
   # Test size.S0
   result <- ct.sample(disease.net, 0.2, "contacts_of_edge_units", 2)
