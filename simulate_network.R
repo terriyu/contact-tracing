@@ -55,7 +55,7 @@ suppressMessages(library(network))
   return(edge.prob.mtx)
 }
 
-generate.network <- function(nodes.per.class, P.ij) {
+generate.network <- function(nodes.per.class, P.ij, class.names = NULL) {
   # Generates a network simulated according to nodes.per.class and the
   # probability matrix for links between nodes of different classes P.ij
   #
@@ -64,6 +64,8 @@ generate.network <- function(nodes.per.class, P.ij) {
   #                     the number of nodes in class 2, etc.
   #   P.ij - square, symmetric matrix containing probabilities; each entry
   #          is the probability of a link between node class i and node class j
+  #   class.names - [optional] vector of strings which are class names,
+  #                 must be same length as nodes.per.class
   #
   # Returns:
   #   socio.net - network object containing the simulated network
@@ -105,6 +107,14 @@ generate.network <- function(nodes.per.class, P.ij) {
   # After network has been generated, fill in lower triangle
   full.socio.mtx <- upper.socio.mtx + t(upper.socio.mtx)
   socio.net <- network(full.socio.mtx, directed = FALSE, hyper = FALSE, loops = FALSE, multiple = FALSE)
+  # Set class names if specified
+  if (! is.null(class.names)) {
+    if (length(class.names) != length(nodes.per.class)) {
+      stop("Number of class names in class.names inconsistent with nodes.per.class")
+    }
+
+    socio.net <- set.vertex.attribute(socio.net, "class", rep(class.names, times=nodes.per.class))
+  }
 
   if (! all(full.socio.mtx == as.sociomatrix(socio.net))) {
     stop("Network initialization inconsistent with input data")
