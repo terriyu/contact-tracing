@@ -15,7 +15,8 @@ suppressMessages(library(network))
   #   S - current sample as vector
   #   Z - infected nodes as vector
   #   socio.mtx - adjacency matrix corresponding to socio matrix
-  #   ct.design - contact tracing design to use: "infected_only", "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
+  #   ct.design - contact tracing design to use: "infected_only", "infected_and_edge_units",
+  #               "contacts_of_edge_units", "full_contact_components"
   #   p.trace.infected - Bernoulli parameter for tracing infected contact
   #   p.trace.uninfected - Bernoulli parameter for tracing uninfected contact
   #
@@ -64,9 +65,11 @@ ct.sample <- function(disease.net, sigma, ct.design, size.S0 = NULL, num.waves =
   # Args:
   #   disease.net - network with infection attributes
   #   sigma - Bernoulli parameter for initial sampling process
-  #   ct.design - contact tracing design to use: "infected_only", "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
+  #   ct.design - contact tracing design to use: "infected_only", "infected_and_edge_units",
+  #               "contacts_of_edge_units", "full_contact_components"
   #   size.S0 - [optional] fix size of initial sample to avoid returning empty sample
-  #   num.waves - [optional] number of waves to use in sampling (NULL if you keep sampling until no new nodes are sampled)
+  #   num.waves - [optional] number of waves to use in sampling
+  #                          (NULL if you keep sampling until no new nodes are sampled)
   #   p.trace.infected - [optional] Bernoulli parameter for tracing infected contact
   #   p.trace.uninfected - [optional] Bernoulli parameter for tracing uninfected contact
   #   verbose - [optional] flag to print variables during sampling process (for debugging)
@@ -94,6 +97,9 @@ ct.sample <- function(disease.net, sigma, ct.design, size.S0 = NULL, num.waves =
   }
   if (xor(is.null(p.trace.infected), is.null(p.trace.uninfected))) {
     stop("Both p.trace.infected and p.trace.uninfected need to be specified")
+  }
+  if (class(disease.net) != "network") {
+    stop("disease.net is not a network class object")
   }
 
   # Number of nodes in network
@@ -170,4 +176,87 @@ ct.sample <- function(disease.net, sigma, ct.design, size.S0 = NULL, num.waves =
   }
 
   return(list(S0 = S0, S = S))
+}
+
+compute.design.mtx <- function(Z, S, ct.design) {
+  # Compute design matrix from infected nodes, contact tracing sample & design,
+  # the design matrix contains all potentially observable links
+  #
+  # Args:
+  #   Z - infected nodes as vector
+  #   S - contact tracing sample as vector
+  #   ct.design - contact tracing design to use: "infected_only",
+  #               "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
+  #
+  # Returns:
+  #   D - design matrix with dimension equal to length of Z and S
+
+  # Error checking
+  if (length(Z) != length(S)) {
+    stop("Z and S must have same length")
+  }
+  if (! (all(Z == 0 | Z == 1))) {
+    stop("Z needs to be vector of 0's and 1's")
+  }
+  if (! (all(S == 0 | S == 1))) {
+    stop("S needs to be vector of 0's and 1's")
+  }
+
+  # Vector of ones
+  ones.vec <- rep(1, length(Z))
+
+  if (ct.design == "infected_only") {
+    D <- S %*% t(S)
+  } else if (ct.design == "infected_and_edge_units") {
+    D <- (S * Z) %*% t(ones.vec) + ones.vec %*% t(S * Z) - (S * Z) %*% t(S * Z)
+  } else if ((ct.design == "contacts_of_edge_units") | (ct.design == "full_contact_components")) {
+    D <- S %*% t(ones.vec) + ones.vec %*% t(S) - S %*% t(S)
+  } else {
+    stop("Invalid value specified for ct.design")
+  }
+
+  # Return design matrix
+  return(D)
+}
+
+compute.observed <- function(disease.net, S, ct.design) {
+  # Compute observed network and infection corresponding to network with
+  # specified socio matrix, infection, and contact tracing sample & design
+  #
+  # Args:
+  #   disease.net - network with infection attributes
+  #   S - contact tracing sample as vector
+  #   ct.design - contact tracing design to use: "infected_only",
+  #               "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
+  #
+  # Returns:
+  #   Y.obs - observed network, derived from sample
+  #   Z.obs - observed infection, derived from sample
+
+  # Error checking
+  if (class(disease.net) != "network") {
+    stop("disease.net is not a network class object")
+  }
+  if (network.size(disease.net) != length(S)) {
+    stop("S and socio.net have inconsistent sizes")
+  }
+  if (! (all(S == 0 | S == 1))) {
+    stop("S needs to be vector of 0's and 1's")
+  }
+
+  # Cast network into matrix form
+  Y <- as.sociomatrix(disease.net)
+  # Extract infected nodes in network
+  Z <- get.vertex.attribute(disease.net, "infected")
+
+  # Compute design matrix
+  D <- compute.design.mtx(Z, S, ct.design)
+  # Compute observed network
+  Y.obs <- D * Y
+
+  # Compute observed infection
+  Z.obs <- Z * S
+
+  # Return observed network and infection
+  return(list(Y.obs = Y.obs, Z.obs = Z.obs))
 }
