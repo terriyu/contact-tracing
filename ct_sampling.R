@@ -203,14 +203,15 @@ compute.design.mtx <- function(Z, S, ct.design) {
   }
 
   # Vector of ones
-  ones.vec <- rep(1, length(Z))
+  num.nodes <- length(Z)
+  ones <- rep(1, num.nodes)
 
   if (ct.design == "infected_only") {
     D <- S %*% t(S)
   } else if (ct.design == "infected_and_edge_units") {
-    D <- (S * Z) %*% t(ones.vec) + ones.vec %*% t(S * Z) - (S * Z) %*% t(S * Z)
+    D <- (S * Z) %*% t(ones) + ones %*% t(S * Z) - (S * Z) %*% t(S * Z)
   } else if ((ct.design == "contacts_of_edge_units") | (ct.design == "full_contact_components")) {
-    D <- S %*% t(ones.vec) + ones.vec %*% t(S) - S %*% t(S)
+    D <- S %*% t(ones) + ones %*% t(S) - S %*% t(S)
   } else {
     stop("Invalid value specified for ct.design")
   }
