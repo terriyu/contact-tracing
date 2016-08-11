@@ -29,17 +29,25 @@ test_that("Test generate.network", {
 
   # Number of nodes in each class
   nodes.per.class <- c(1,2,3)
+  num.nodes <- sum(nodes.per.class)
   # Matrix containing probability of link between class i and class j
   P.ij <- matrix(c(0.5, 0.4, 0, 0.4, 0.8, 0.4, 0, 0.4, 0.5), nrow = 3, ncol = 3)
 
   # Test that nodes.per.class and class.names are consistent
   expect_error(generate.network(nodes.per.class, P.ij, c("a", "b")), regexp = "Number of class names in class.names inconsistent with nodes.per.class")
 
+  # Test that class attribute set correctly
+  net <- generate.network(num.nodes, 0.2)
+  expect_equal(get.vertex.attribute(net, "class.label"), c(1, 1, 1, 1, 1, 1))
+
+  net <- generate.network(nodes.per.class, P.ij)
+  expect_equal(get.vertex.attribute(net, "class.label"), c(1, 2, 2, 3, 3, 3))
+
   net <- generate.network(nodes.per.class, P.ij, c("a", "b", "c"))
+  expect_equal(get.vertex.attribute(net, "class.name"), c("a", "b", "b", "c", "c", "c"))
+
   socio.mtx <- as.sociomatrix(net)
 
-  # Test that class attribute set correctly
-  expect_equal(get.vertex.attribute(net, "class"), c("a", "b", "b", "c", "c", "c"))
   # Test that all values of sociomatrix are 0 or 1
   expect_true(all((socio.mtx == 0) | (socio.mtx == 1)))
 

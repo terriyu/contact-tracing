@@ -107,14 +107,18 @@ generate.network <- function(nodes.per.class, P.ij, class.names = NULL) {
   # After network has been generated, fill in lower triangle
   full.socio.mtx <- upper.socio.mtx + t(upper.socio.mtx)
   socio.net <- network(full.socio.mtx, directed = FALSE, hyper = FALSE, loops = FALSE, multiple = FALSE)
-  # Set class names if specified
+
+  # Set class name attribute if specified by user
   if (! is.null(class.names)) {
     if (length(class.names) != length(nodes.per.class)) {
       stop("Number of class names in class.names inconsistent with nodes.per.class")
     }
-
-    socio.net <- set.vertex.attribute(socio.net, "class", rep(class.names, times=nodes.per.class))
+    # Set attribute
+    socio.net <- set.vertex.attribute(socio.net, "class.name", rep(class.names, times = nodes.per.class))
   }
+
+  # Set class label attribute with generic numbering 1, 2, 3, etc
+  socio.net <- set.vertex.attribute(socio.net, "class.label", rep(1:length(nodes.per.class), times = nodes.per.class))
 
   if (! all(full.socio.mtx == as.sociomatrix(socio.net))) {
     stop("Network initialization inconsistent with input data")
