@@ -15,14 +15,20 @@ use.rds <- TRUE
 # Number of networks and samples to simulate
 num.sims <- 100
 
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# !! More general formulation is multiple node classes, but here   !!
+# !! we only consider one class, so nodes.per.class and P.ij       !!
+# !! are scalars num.nodes and p, instead of a vector and a matrix !!
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 # Parameters for network, disease, and sampling models
-num.nodes <- 200  # Number of nodes in network
-P.ij <- 0.01      # Bernoulli parameter for link between two nodes
+num.nodes <- 200  # Number of nodes in network (nodes.per.class for multiple classes)
+p <- 0.01         # Bernoulli parameter for link between two nodes (P.ij for multiple classes)
 eta <- 0.065      # Bernoulli parameter for initial infection
 tau <- 0.55       # Bernoulli parameter for transmission
 sigma <- 0.11     # Bernoulli parameter for initial sample
 # Save model parameters in list
-model.params <- list(num.nodes = num.nodes, P.ij = P.ij, eta = eta, tau = tau, sigma = sigma)
+model.params <- list(nodes.per.class = num.nodes, P.ij = p, eta = eta, tau = tau, sigma = sigma)
 
 # Infection design variables
 # Fix number of nodes infected
@@ -49,7 +55,7 @@ sim.data.list <- replicate(num.sims, list())
 
 for (i in 1:num.sims) {
   # Generate network and spread infection
-  socio.net <- generate.network(num.nodes, P.ij)
+  socio.net <- generate.network(num.nodes, p)
   spread.result <- spread.infection(socio.net, eta, tau, initial.infect.method, num.infect)
   # Unpack network and disease results
   Z0 <- spread.result$Z0                    # Initial infected nodes
