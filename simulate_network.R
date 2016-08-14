@@ -4,12 +4,10 @@
 #   1. Generate an undirected network [generate.network()]
 #   2. Spread the infection across the network [spread.infection()]
 
-# TODO: Other types of networks?  Directed networks?
+# IDEA: Other types of networks?  Directed networks?
 
 # Load network package without all the startup messages
 suppressMessages(library(network))
-
-# ---------------- FUNCTIONS ---------------------
 
 .create.edge.prob.mtx <- function(nodes.per.class, P.ij) {
   # Creates a matrix whose entries are probabilities that an edge will link
@@ -70,6 +68,8 @@ generate.network <- function(nodes.per.class, P.ij, class.names = NULL) {
   # Returns:
   #   socio.net - network object containing the simulated network
 
+  # ---------- ERROR CHECKING ---------- #
+
   # Error checking: check that P.ij is square matrix
   if (length(P.ij) > 1) {
     if (dim(P.ij)[1] != dim(P.ij)[2]) {
@@ -93,6 +93,8 @@ generate.network <- function(nodes.per.class, P.ij, class.names = NULL) {
     }
   }
 
+  # ---------- GENERATE NETWORK ---------- #
+
   # Number of nodes in network
   num.nodes <- sum(nodes.per.class)
   # Create matrix containing prob each node is linked to another node
@@ -107,6 +109,8 @@ generate.network <- function(nodes.per.class, P.ij, class.names = NULL) {
   # After network has been generated, fill in lower triangle
   full.socio.mtx <- upper.socio.mtx + t(upper.socio.mtx)
   socio.net <- network(full.socio.mtx, directed = FALSE, hyper = FALSE, loops = FALSE, multiple = FALSE)
+
+  # ---------- SET CLASS ATTRIBUTE ---------- #
 
   # Set class name attribute if specified by user
   if (! is.null(class.names)) {
@@ -146,6 +150,8 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.inf
   #   W.net - directed network object corresponding to infection transmission matrix
   #   disease.net - disease network (network object) with edge and vertex attributes describing infection
 
+  # ---------- ERROR CHECKING ---------- #
+
   # Error checking for eta and tau parameters
   if (! is.null(eta)) {
     if ((eta < 0) | (eta > 1)) {
@@ -157,6 +163,8 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.inf
       stop("Bernoulli process parameter tau must be between 0 and 1")
     }
   }
+
+  # ---------- GENERATE INITIAL INFECTION Z0 ---------- #
 
   # Number of nodes in network
   num.nodes <- network.size(socio.net)
@@ -200,6 +208,8 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.inf
     Z0 <- Z0.fixed
   }
 
+  # ---------- GENERATE TRANSMISSIBILITY MATRIX W ---------- #
+
   # Transmissibility matrix W (1 for edge that can transmit infection, 0 otherwise)
   # Assume independent homogenous Bernoulli processes on all nodes wih parameter tau
   if (is.null(W.fixed)) {
@@ -229,6 +239,8 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.inf
     print(W)
     cat("\n")
   }
+
+  # ---------- GENERATE FULL INFECTION Z ---------- #
 
   # Current infected nodes
   Z <- Z0
@@ -277,6 +289,8 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.inf
       break
     }
   }
+
+  # ---------- SET INFECTION ATTRIBUTE ---------- #
 
   # Add infection attributes to network
   set.vertex.attribute(socio.net, "initial.infection", Z0)

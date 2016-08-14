@@ -23,6 +23,8 @@ suppressMessages(library(network))
   # Returns:
   #   S.next - next sample as vector
 
+  # ---------- COMPUTE TRANSMISSION MATRIX ---------- #
+
   # Links can be followed with complete accuracy
   transmission.mtx <- socio.mtx
   # Links cannot be followed with complete accuracy
@@ -35,7 +37,8 @@ suppressMessages(library(network))
     transmission.mtx[ , Z == 1] <- transmission.mtx[ , Z == 1] * matrix(rbinom(num.infect * num.nodes, 1, p.trace.infected), nrow = num.nodes, ncol = num.infect)
   }
 
-  # Compute next sample
+  # ---------- COMPUTE NEXT SAMPLE ---------- #
+
   if (ct.design == "infected_only") {
     # Only sample infected nodes
     S.next <- (S.prev %*% transmission.mtx) * Z * (1 - S)
@@ -79,6 +82,8 @@ ct.sample <- function(disease.net, sigma, ct.design, size.S0 = NULL, num.waves =
   #   S0 - initial nodes sampled as vector
   #   S - full contact tracing sample as vector
 
+  # ---------- ERROR CHECKING ---------- #
+
   # Error checking for sigma, p.trace.infected, and p.trace.uninfected
   if (! is.null(sigma)) {
     if ((sigma < 0) | (sigma > 1)) {
@@ -102,6 +107,8 @@ ct.sample <- function(disease.net, sigma, ct.design, size.S0 = NULL, num.waves =
     stop("disease.net is not a network class object")
   }
 
+  # ---------- EXTRACT VARIABLES ---------- #
+
   # Number of nodes in network
   num.nodes <- network.size(disease.net)
   # Extract infected nodes in network
@@ -109,7 +116,8 @@ ct.sample <- function(disease.net, sigma, ct.design, size.S0 = NULL, num.waves =
   # Extract adjacency matrix for disease network
   socio.mtx <- as.sociomatrix(disease.net)
 
-  # Initial sample
+  # ---------- PERFORM INITIAL SAMPLE ---------- #
+
   if (! is.null(S0.fixed)) {
     # Initial sample is completely specified ahead of time
     S0 <- S0.fixed
@@ -130,6 +138,8 @@ ct.sample <- function(disease.net, sigma, ct.design, size.S0 = NULL, num.waves =
     # Only keep infected nodes
     S0 <- S0 * Z
   }
+
+  # ---------- PERFORM FULL SAMPLE ---------- #
 
   # Current sample
   S <- S0
@@ -191,7 +201,8 @@ compute.design.mtx <- function(Z, S, ct.design) {
   # Returns:
   #   D - design matrix with dimension equal to length of Z and S
 
-  # Error checking
+  # ---------- ERROR CHECKING ---------- #
+
   if (length(Z) != length(S)) {
     stop("Z and S must have same length")
   }
@@ -201,6 +212,8 @@ compute.design.mtx <- function(Z, S, ct.design) {
   if (! (all(S == 0 | S == 1))) {
     stop("S needs to be vector of 0's and 1's")
   }
+
+  # ---------- COMPUTE DESIGN MATRIX ---------- #
 
   # Vector of ones
   num.nodes <- length(Z)
@@ -234,7 +247,8 @@ compute.observed <- function(disease.net, S, ct.design) {
   #   Y.obs - observed network, derived from sample
   #   Z.obs - observed infection, derived from sample
 
-  # Error checking
+  # ---------- ERROR CHECKING ---------- #
+
   if (class(disease.net) != "network") {
     stop("disease.net is not a network class object")
   }
@@ -244,6 +258,8 @@ compute.observed <- function(disease.net, S, ct.design) {
   if (! (all(S == 0 | S == 1))) {
     stop("S needs to be vector of 0's and 1's")
   }
+
+  # ---------- COMPUTE OBSERVED NETWORK ---------- #
 
   # Cast network into matrix form
   Y <- as.sociomatrix(disease.net)
