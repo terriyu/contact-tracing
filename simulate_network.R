@@ -4,7 +4,7 @@
 #   1. Generate an undirected network [generate.network()]
 #   2. Spread the infection across the network [spread.infection()]
 
-# IDEA: Other types of networks?  Directed networks?
+# IDEA: Simulate other types of networks?  Directed networks?
 
 # Load network package without all the startup messages
 suppressMessages(library(network))
@@ -219,6 +219,7 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.inf
   }
 
   diag(W) <- 0 # A node can't transmit infection to itself
+
   # Multiply element-wise by sociomatrix to get all possible transmissions in
   # this particular network instance
   # If we didn't do this multiplication, W would contain transmissions that
@@ -259,7 +260,7 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.inf
       cat("Z.next: ", Z.next, "\n")
     }
 
-    # FIXME: Make calculation of spread.edges optional??
+    # QUESTION: Make calculation of spread.edges optional??
     # Mark edges that spread infection in this wave
     for (j in which(Z.next == 1)) {
       # Nodes that could have spread the infection to node j
@@ -298,6 +299,6 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.inf
   set.edge.attribute(socio.net, "spread", spread.edges)
 
   # Return data from infected network
-  # FIXME: Seems redundant to return Z0 and Z if they are already attributes in infected.net
+  # QUESTION: Seems redundant to return Z0 and Z if they are already attributes in infected.net
   return(list(Z0 = Z0, Z = Z, W.net = W.net, disease.net = socio.net))
 }
