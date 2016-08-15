@@ -2,10 +2,10 @@ Contact tracing
 ===============
 
 Repository for development of R code, which implements the contact tracing
-method in social networks.
+sampling method in social networks.
 
 See Krista Gile's thesis in references below for more details about contact
-tracing.
+tracing sampling.
 
 Features
 --------
@@ -51,7 +51,7 @@ To run an individual test:
 
 Code style check
 ----------------
-If you are using the R package lintr to check code style, there is already a
+If you are using the R package `lintr` to check code style, there is already a
 lintr config file `.lintr` which avoids running a couple linters.
 
 References
