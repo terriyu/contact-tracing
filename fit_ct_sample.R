@@ -1,4 +1,4 @@
-# subgraphs with size 1 Functions for fitting observed networks and sampled nodes
+# Functions for fitting contact tracing samples
 
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # ! NOTE: We don't estimate sigma, because we use missing-at-random assumption, !
@@ -8,7 +8,8 @@
 # !       p.trace.infected = 1, p.trace.uninfected = 1                          !
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
- # Need for components functions, components() and component.dist()
+# Need for components functions, components() and component.dist()
+# NOTE: Potential conflict with network package for operator %c%
 suppressMessages(library(sna))
  # Need for spanning tree function mst()
 suppressMessages(library(ape))
@@ -29,6 +30,110 @@ transform.tree.directed <- function(root, tree) {
     }
     return(dyads)
   }
+}
+
+compute.dst.mst <- function(root, infected.subgraph) {
+  # Compute a minimum spanning tree for infected subgraph
+  # NOTE: For a unweighted graph, every spanning tree is also a minimum spanning tree
+  spanning.tree <- mst(infected.subgraph)
+
+  # Turn spanning tree into a directed spanning tree
+  # Get list of directed edges corresponding to directed spanning tree
+  directed.edges.list <- transform.tree.directed(root, spanning.tree)
+
+  return(directed.edges.list)
+}
+
+compute.dst.bf <- function(root, infected.subgraph) {
+  if (sum(diag(infected.subgraph)) != 0) {
+    stop("Infected subgraph must have zero diagonal")
+  }
+
+  # Compute number of nodes
+  num.nodes <- dim(infected.subgraph)[1]
+
+  # Initialize list of directed edges in spanning tree
+  directed.edges.list <- list()
+  # Initialize Boolean vector indicating which nodes have been visited
+  visited <- rep(FALSE, num.nodes)
+
+  # Visit root node
+  # Initialize queue of nodes to explore, enqueue root
+  queue <- list(root)
+  # Set root as visited
+  visited[root] <- TRUE
+
+  while (length(queue) > 0) {
+    # Dequeue head and set to current node
+    current.node <- queue[[1]]
+    queue[[1]] <- NULL
+    # Find all children of current node
+    children <- which(infected.subgraph[current.node, ] == 1)
+
+    # Check all children to see if they have been visited
+    for (child in children) {
+      # If child has not been visited, add edge and add child to queue
+      if (! visited[child]) {
+        # Mark child as visited
+        visited[child] <- TRUE
+        # Enqueue child
+        queue <- c(queue, child)
+
+        # Add edge to directed spanning tree
+        directed.edges.list <- c(directed.edges.list, list(c(current.node, child)))
+      }
+    }
+  }
+
+  return(directed.edges.list)
+}
+
+compute.dst.df <- function(root, infected.subgraph) {
+  if (sum(diag(infected.subgraph)) != 0) {
+    stop("Infected subgraph must have zero diagonal")
+  }
+
+  # Compute number of nodes
+  num.nodes <- dim(infected.subgraph)[1]
+
+  # Initialize list of directed edges in spanning tree
+  directed.edges.list <- list()
+  # Initialize Boolean vector indicating which nodes have been visited
+  visited <- rep(FALSE, num.nodes)
+
+  # Visit root node
+  # Initialize stack of nodes to explore, push root onto stack
+  stack <- list(root)
+  # Set root as visited
+  visited[root] <- TRUE
+
+  while (length(stack) > 0) {
+    # Peek at top of stack
+    current.node <- stack[[length(stack)]]
+    # Find all unvisited children of current node
+    unvisited.children <- which(infected.subgraph[current.node, ] == 1 & (! visited))
+
+    if (length(unvisited.children) != 0) {
+      # Get first unvisited child
+      next.node <- unvisited.children[1]
+      # Mark it as visited
+      visited[next.node] <- TRUE
+      # Push it onto the stack
+      stack <- c(stack, next.node)
+
+      # Add edge to directed spanning tree
+      directed.edges.list <- c(directed.edges.list, list(c(current.node, next.node)))
+    } else {
+      # All ancestors of current node visited, pop from stack
+      stack[[length(stack)]] <- NULL
+    }
+  }
+
+  return(directed.edges.list)
+}
+
+toggle.binary.int <- function(binary.int) {
+  return(as.integer(! binary.int))
 }
 
 estimate.initial.params <- function(Y.obs, Z.obs, S, ct.design, class.labels) {
@@ -296,17 +401,13 @@ initial.net.sample <- function(Y.obs, Z.obs, S, class.labels, P.ij0, eta0, tao0)
 
       # Case of infected subgraph of size 2 or larger
       if (sum(subgraph.infected.nodes) > 1) {
-        # Compute a minimum spanning tree for infected subgraph
-        # NOTE: We don't need a minimum spanning tree, any spanning tree is sufficient
-        # NOTE: Multiply by -1, since we are computing minimum spanning tree
-        spanning.tree <- mst(-1*Y.obs.infected[subgraph.infected.nodes, subgraph.infected.nodes])
-
-        # Turn spanning tree into a directed spanning tree, with root at initial infected node Z0
-
+        # Root at initial infected node Z0
         # Get index for root
         Z0.root <- which(subgraph.infected.indices == infected.idx)
-        # Get list of directed edges corresponding to directed spanning tree
-        directed.edges.list <- transform.tree.directed(Z0.root, spanning.tree)
+
+        # Compute directed spanning tree for infected subgraph
+        directed.edges.list <- compute.dst.bf(root, Y.obs.infected[subgraph.infected.nodes, subgraph.infected.nodes])
+
         # Convert list to array indices
         flattened.indices <- sapply(unlist(directed.edges.list), function(idx) subgraph.infected.indices[idx])
         directed.edges.indices <- matrix(flattened.indices, nrow = length(directed.edges.list), ncol = 2, byrow = TRUE)
@@ -350,7 +451,17 @@ initial.net.sample <- function(Y.obs, Z.obs, S, class.labels, P.ij0, eta0, tao0)
   # Any unset entries in W are assigned by Bernoulli process
   W[is.na(W)] <- rbinom(sum(is.na(W)), 1, tau0)
 
-  # FIXME: Compute reachabiity
+  # Check that Z0 and W from MCMC sample is consistent with Z.obs
+
+  # Compute reachability matrix
+  R.D <- reachability(W * Y)
+  # Compute resulting infection
+  Z <- R.D %*% Z0
+
+  # FIXME: Should get rid of this error message
+  if (! all(Z[S == 1] == Z.obs[S == 1])) {
+    stop("Error calculating initial MCMC sample: Sample inconsistent with Z.obs")
+  }
 
   # Error checking for Z0
 
