@@ -11,46 +11,37 @@
 # Need for components functions, components() and component.dist()
 # NOTE: Potential conflict with network package for operator %c%
 suppressMessages(library(sna))
- # Need for spanning tree function mst()
-suppressMessages(library(ape))
 
-transform.tree.directed <- function(root, tree) {
-  # Delete edges going into root node
-  tree[ , root] <- 0
+compute.dst.bf <- function(root, subgraph) {
+  # Compute directed spanning tree of unweighted connected subgraph
+  # Uses breadth-first traversal
+  #
+  # Args:
+  #   root - Index of tree root (integer)
+  #   subgraph - adjacency matrix for connected subgraph
+  #
+  # Returns:
+  #   directed.edges.list <- list of edges in directed spanning tree
 
-  if (sum(tree[root, ] == 1) == 0) {
-    # Base case for recursion
-    # No children, so return NULL
-    return(NULL)
-  } else {
-    children <- which(tree[root, ] == 1)
-    dyads <- lapply(children, function(child) c(root, child))
-    for (cc in children) {
-      dyads <- c(dyads, transform.tree.directed(cc, tree))
-    }
-    return(dyads)
+  # Error checking
+  if (dim(subgraph)[1] != dim(subgraph)[2]) {
+    stop("Subgraph is not a square matrix")
   }
-}
 
-compute.dst.mst <- function(root, infected.subgraph) {
-  # Compute a minimum spanning tree for infected subgraph
-  # NOTE: For a unweighted graph, every spanning tree is also a minimum spanning tree
-  spanning.tree <- mst(infected.subgraph)
+  if (sum(diag(subgraph)) != 0) {
+    stop("Subgraph must have zero diagonal")
+  }
 
-  # Turn spanning tree into a directed spanning tree
-  # Get list of directed edges corresponding to directed spanning tree
-  directed.edges.list <- transform.tree.directed(root, spanning.tree)
+  if ((root < 1) | (root > dim(subgraph)[1])) {
+    stop("Invalid index for root of tree")
+  }
 
-  return(directed.edges.list)
-}
-
-compute.dst.bf <- function(root, infected.subgraph) {
-  if (sum(diag(infected.subgraph)) != 0) {
-    stop("Infected subgraph must have zero diagonal")
+  if (! is.connected(subgraph)) {
+    stop("Subgraph is not connected")
   }
 
   # Compute number of nodes
-  num.nodes <- dim(infected.subgraph)[1]
+  num.nodes <- dim(subgraph)[1]
 
   # Initialize list of directed edges in spanning tree
   directed.edges.list <- list()
@@ -68,7 +59,7 @@ compute.dst.bf <- function(root, infected.subgraph) {
     current.node <- queue[[1]]
     queue[[1]] <- NULL
     # Find all children of current node
-    children <- which(infected.subgraph[current.node, ] == 1)
+    children <- which(subgraph[current.node, ] == 1)
 
     # Check all children to see if they have been visited
     for (child in children) {
@@ -88,13 +79,36 @@ compute.dst.bf <- function(root, infected.subgraph) {
   return(directed.edges.list)
 }
 
-compute.dst.df <- function(root, infected.subgraph) {
-  if (sum(diag(infected.subgraph)) != 0) {
+compute.dst.df <- function(root, subgraph) {
+  # Compute directed spanning tree of unweighted connected subgraph
+  # Uses depth-first traversal
+  #
+  # Args:
+  #   root - Index of tree root (integer)
+  #   subgraph - adjacency matrix for connected subgraph
+  #
+  # Returns:
+  #   directed.edges.list <- list of edges in directed spanning tree
+
+  # Error checking
+  if (dim(subgraph)[1] != dim(subgraph)[2]) {
+    stop("Subgraph is not a square matrix")
+  }
+
+  if (sum(diag(subgraph)) != 0) {
     stop("Infected subgraph must have zero diagonal")
   }
 
+  if ((root < 1) | (root > dim(subgraph)[1])) {
+    stop("Invalid index for root of tree")
+  }
+
+  if (! is.connected(subgraph)) {
+    stop("Subgraph is not connected")
+  }
+
   # Compute number of nodes
-  num.nodes <- dim(infected.subgraph)[1]
+  num.nodes <- dim(subgraph)[1]
 
   # Initialize list of directed edges in spanning tree
   directed.edges.list <- list()
@@ -111,7 +125,7 @@ compute.dst.df <- function(root, infected.subgraph) {
     # Peek at top of stack
     current.node <- stack[[length(stack)]]
     # Find all unvisited children of current node
-    unvisited.children <- which(infected.subgraph[current.node, ] == 1 & (! visited))
+    unvisited.children <- which(subgraph[current.node, ] == 1 & (! visited))
 
     if (length(unvisited.children) != 0) {
       # Get first unvisited child
@@ -156,9 +170,34 @@ estimate.initial.params <- function(Y.obs, Z.obs, S, ct.design, class.labels) {
   #   eta0 - Bernoulli process parameter for initial infection
   #   tau0 - Bernoulli process parameter for generating transmission matrix
 
-  # FIXME: error checking
-
   # ---------- ERROR CHECKING ---------- #
+
+  dims <- c(dim(Y.obs)[1], dim(Y.obs)[2], length(Z.obs), length(class.labels))
+  if (! all(dims == length(S))) {
+    stop("Number of nodes inconsistent for one of Y.obs, Z.obs, S, class.labels")
+  }
+
+  if (! (all(Y.obs == 0 | Y.obs == 1))) {
+    stop("Y.obs needs to be a matrix of 0's and 1's")
+  }
+
+  if (! (all(Z.obs == 0 | Z.obs == 1))) {
+    stop("Z needs to be a vector of 0's and 1's")
+  }
+
+  if (! (all(S == 0 | S == 1))) {
+    stop("S needs to be a vector of 0's and 1's")
+  }
+
+  if (dim(Y.obs)[1] != dim(Y.obs)[2]) {
+    stop("Y.obs is not a square matrix")
+  }
+
+  if (sum(diag(Y.obs)) != 0) {
+    stop("Y.obs must have zero diagonal")
+  }
+
+  # ----------- CALCULATE USEFUL VARIABLES ---------- #
 
   num.nodes <- length(class.labels)
   num.classes <- length(unique(class.labels))
@@ -308,10 +347,83 @@ estimate.initial.params <- function(Y.obs, Z.obs, S, ct.design, class.labels) {
   return(list(P.ij0 = P.ij0, eta0 = eta0, tau0 = tau0))
 }
 
-initial.net.sample <- function(Y.obs, Z.obs, S, class.labels, P.ij0, eta0, tao0) {
-  # FIXME: Error checking
+initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, P.ij0, eta0, tao0) {
+  # Draw initial MCMC sample based on initial model parameters P.ij0, eta0, and tau0
+  #
+  # Args:
+  #   Y.obs - observed network, derived from sample
+  #   Z.obs - observed infection, derived from sample
+  #   S - contact tracing sample as vector
+  #   class.labels - class labels (string) for each node, as vector of strings
+  #   P.ij0 - square, symmetric matrix containing probabilities; each entry
+  #          is the probability of a link between node class i and node class j
+  #   eta0 - Bernoulli process parameter for initial infection
+  #   tau0 - Bernoulli process parameter for generating transmission matrix
+  #
+  # Returns:
+  #   sample
 
   # ---------- ERROR CHECKING ---------- #
+
+  dims <- c(dim(Y.obs)[1], dim(Y.obs)[2], length(Z.obs), length(class.labels))
+  if (! all(dims == length(S))) {
+    stop("Number of nodes inconsistent for one of Y.obs, Z.obs, S, class.labels")
+  }
+
+  if (! (all(Y.obs == 0 | Y.obs == 1))) {
+    stop("Y.obs needs to be a matrix of 0's and 1's")
+  }
+
+  if (! (all(Z.obs == 0 | Z.obs == 1))) {
+    stop("Z needs to be a vector of 0's and 1's")
+  }
+
+  if (! (all(S == 0 | S == 1))) {
+    stop("S needs to be a vector of 0's and 1's")
+  }
+
+  if (dim(Y.obs)[1] != dim(Y.obs)[2]) {
+    stop("Y.obs is not a square matrix")
+  }
+
+  if (sum(diag(Y.obs)) != 0) {
+    stop("Y.obs must have zero diagonal")
+  }
+
+  if (! is.null(eta0)) {
+    if ((eta0 < 0) | (eta0 > 1)) {
+      stop("Bernoulli process parameter eta must be between 0 and 1")
+    }
+  }
+
+  if (! is.null(tau)) {
+    if ((tau0 < 0) | (tau0 > 1)) {
+      stop("Bernoulli process parameter tau must be between 0 and 1")
+    }
+  }
+
+  # Error checking: check that P.ij0 is square matrix
+  if (length(P.ij0) > 1) {
+    if (dim(P.ij0)[1] != dim(P.ij0)[2]) {
+      stop("P.ij0 not a square matrix")
+    }
+  }
+
+  # Error checking: check that P.ij0 is symmetric matrix
+  # Probability of link between class i and class j should be same as
+  # probability of link between class j and class i
+  if (! all(P.ij0 == t(P.ij0))) {
+    stop("P.ij0 is not symmetric")
+  }
+
+  # Error checking: check that class.labels and P.ij0 are consistent
+  if (length(P.ij0) > 1) {
+    # Number of classes
+    num.classes <- length(unique(class.labels))
+    if (num.classes != dim(P.ij0)[1]) {
+      stop("class.labels and P.ij0 are inconsistent")
+    }
+  }
 
   # ---------- PERFORM Y SAMPLE ---------- #
 
@@ -399,6 +511,9 @@ initial.net.sample <- function(Y.obs, Z.obs, S, class.labels, P.ij0, eta0, tao0)
       # Set corresponding node in Z0 to infected status
       Z0[infected.idx] <- 1
 
+      # QUESTION: Better to construct W using directed spanning tree for infected subgraph
+      #           or simply construct W by setting W = 1 for all edges in infected subgraph?
+
       # Case of infected subgraph of size 2 or larger
       if (sum(subgraph.infected.nodes) > 1) {
         # Root at initial infected node Z0
@@ -406,6 +521,8 @@ initial.net.sample <- function(Y.obs, Z.obs, S, class.labels, P.ij0, eta0, tao0)
         Z0.root <- which(subgraph.infected.indices == infected.idx)
 
         # Compute directed spanning tree for infected subgraph
+        # NOTE: Prefer breadth-first versus depth-first spanning tree
+        #       Makes more sense for practical situations like needle/drug sharing party?
         directed.edges.list <- compute.dst.bf(root, Y.obs.infected[subgraph.infected.nodes, subgraph.infected.nodes])
 
         # Convert list to array indices
@@ -456,7 +573,8 @@ initial.net.sample <- function(Y.obs, Z.obs, S, class.labels, P.ij0, eta0, tao0)
   # Compute reachability matrix
   R.D <- reachability(W * Y)
   # Compute resulting infection
-  Z <- R.D %*% Z0
+  Z <- Z0 %*% R.D
+  Z[Z > 0] <- 1
 
   # FIXME: Should get rid of this error message
   if (! all(Z[S == 1] == Z.obs[S == 1])) {
