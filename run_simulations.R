@@ -93,9 +93,10 @@ for (i in 1:num.sims) {
   # Unpack observed results
   Y.obs <- obs.result$Y.obs  # Observed network
   Z.obs <- obs.result$Z.obs  # Observed infection
+  D <- obs.result$D # Design matrix
 
   # Save simulation data to list
-  sim.data.list[[i]] <- list(disease.net = disease.net, Z0 = Z0, Z = Z, W.net = W.net, S0 = S0, S = S, Y.obs = Y.obs, Z.obs = Z.obs)
+  sim.data.list[[i]] <- list(disease.net = disease.net, Z0 = Z0, Z = Z, W.net = W.net, S0 = S0, S = S, Y.obs = Y.obs, Z.obs = Z.obs, D = D)
 }
 
 ################################################################
