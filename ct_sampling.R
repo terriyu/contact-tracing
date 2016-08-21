@@ -3,6 +3,7 @@
 # Sampling designs are in Chapter 4.6 of Krista Gile's PhD thesis
 
 # Load network package without all the startup messages
+# NOTE: Potential conflict with sna package for operator %c%
 suppressMessages(library(network))
 
 .sample.next <- function(S.prev, S, Z, socio.mtx, ct.design, p.trace.infected, p.trace.uninfected) {
@@ -190,7 +191,7 @@ ct.sample <- function(disease.net, sigma, ct.design, size.S0 = NULL, num.waves =
 
 compute.design.mtx <- function(Z, S, ct.design) {
   # Compute design matrix from infected nodes, contact tracing sample & design,
-  # the design matrix contains all potentially observable links
+  # the design matrix contains all observable links
   #
   # Args:
   #   Z - infected nodes as vector
@@ -246,6 +247,7 @@ compute.observed <- function(disease.net, S, ct.design) {
   # Returns:
   #   Y.obs - observed network, derived from sample
   #   Z.obs - observed infection, derived from sample
+  #   D - design matrix which contains the observable links
 
   # ---------- ERROR CHECKING ---------- #
 
@@ -274,6 +276,6 @@ compute.observed <- function(disease.net, S, ct.design) {
   # Compute observed infection
   Z.obs <- Z * S
 
-  # Return observed network and infection
-  return(list(Y.obs = Y.obs, Z.obs = Z.obs))
+  # Return observed network, infection, and design matrix
+  return(list(Y.obs = Y.obs, Z.obs = Z.obs, D = D))
 }
