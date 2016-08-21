@@ -132,7 +132,7 @@ generate.network <- function(nodes.per.class, P.ij, class.names = NULL) {
   return(socio.net)
 }
 
-spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.infect = NULL, verbose = FALSE, Z0.fixed = NULL, W.fixed = NULL) {
+spread.infection <- function(socio.net, eta, tau, initial.infect.method, options = list()) {
   # Spread infection across given network and return infected network
   #
   # Args:
@@ -140,16 +140,23 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.inf
   #   eta - Bernoulli process parameter for initial infection
   #   tau - Bernoulli process parameter for generating transmission matrix
   #   initial.infect.method - string specifying method to use for initial infection "nodes", "nodes_fixed", or "edges"
-  #   num.infect - [optional] fix number of nodes or edges in initial infection to avoid returning empty infection
-  #   verbose - [optional] flag to print variables during infection process (for debugging)
-  #   Z0.fixed - [optional] vector of initial infected nodes (only use for debugging/testing)
-  #   W.fixed - [optional] infection trasmission matrix (only use for debugging/testing)
+  #
+  #   [optional arguments]
+  #   options$num.infect - fix number of nodes or edges in initial infection to avoid returning empty infection
+  #   options$verbose - flag to print variables during infection process (for debugging)
+  #   options$Z0.fixed - vector of initial infected nodes (only use for debugging/testing)
+  #   options$W.fixed - infection trasmission matrix (only use for debugging/testing)
   #
   # Returns:
   #   Z0 - vector of initial infected nodes (1 for infected, 0 for not infected)
   #   Z - vector of final infected nodes (1 for infected, 0 for not infected)
   #   W.net - directed network object corresponding to infection transmission matrix
   #   disease.net - disease network (network object) with edge and vertex attributes describing infection
+
+  # Set defaults for options
+  opts <- list(num.infect = NULL, verbose = FALSE, Z0.fixed = NULL, W.fixed = NULL)
+  # Fill in user-specified options
+  opts[names(options)] <- options
 
   # ---------- ERROR CHECKING ---------- #
 
@@ -178,17 +185,17 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.inf
   # Multiple ways to do this: see tosource.R
   # TODO: Implement other ways of generating initial infection [see tosource.r spread()]
   #       In particular, infecting a fixed number of edges is not implemented
-  if (is.null(Z0.fixed)) {
+  if (is.null(opts$Z0.fixed)) {
     if (initial.infect.method == "nodes") {
       # Independent Bernoulli infection process on all nodes
       Z0 <- rbinom(num.nodes, 1, eta)
-    } else if ((initial.infect.method == "nodes_fixed") & (! is.null(num.infect))) {
-      if ((num.infect < 1) | (num.infect > num.nodes)) {
-        stop("num.infect must be between 1 and the number of nodes in the network")
+    } else if ((initial.infect.method == "nodes_fixed") & (! is.null(opts$num.infect))) {
+      if ((opts$num.infect < 1) | (opts$num.infect > num.nodes)) {
+        stop("options$num.infect must be between 1 and the number of nodes in the network")
       }
-      # Randomly pick num.infect nodes to infect
+      # Randomly pick options$num.infect nodes to infect
       Z0 <- rep(0, num.nodes)
-      Z0[sample(1:num.nodes, num.infect)] <- 1
+      Z0[sample(1:num.nodes, opts$num.infect)] <- 1
     } else if (initial.infect.method == "edges") {
       # Independent Bernoulli infection process on all edges
       # Pick edges to infect
@@ -206,17 +213,17 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.inf
       stop("initial.infect.method incorrectly specified")
     }
   } else {
-    Z0 <- Z0.fixed
+    Z0 <- opts$Z0.fixed
   }
 
   # ---------- GENERATE TRANSMISSIBILITY MATRIX W ---------- #
 
   # Transmissibility matrix W (1 for edge that can transmit infection, 0 otherwise)
   # Assume independent homogenous Bernoulli processes on all nodes wih parameter tau
-  if (is.null(W.fixed)) {
+  if (is.null(opts$W.fixed)) {
     W <- matrix(rbinom(num.nodes^2, 1, tau), nrow = num.nodes, ncol = num.nodes)
   } else {
-    W <- W.fixed
+    W <- opts$W.fixed
   }
 
   diag(W) <- 0 # A node can't transmit infection to itself
@@ -233,7 +240,7 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.inf
   # Elements of the vector which are 1 represented edges that spread infection
   spread.edges <- rep(0, network.edgecount(socio.net))
 
-  if (verbose) {
+  if (opts$verbose) {
     cat("Y:\n")
     print(socio.mtx)
     cat("\nZ0: ", Z0, "\n")
@@ -260,7 +267,7 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.inf
     Z.next[Z.next & Z] <- 0 # Only keep new infections
     Z.next[Z.next > 0] <- 1 # Truncate any positve values to 1
 
-    if (verbose) {
+    if (opts$verbose) {
       cat("Z.next: ", Z.next, "\n")
     }
 
@@ -274,7 +281,7 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.inf
         # Mark edge corresponding to nodes j and k as spreading infection
         spread.edges[get.edgeIDs(socio.net, j, alter = k)] <- 1
 
-        if (verbose) {
+        if (opts$verbose) {
           cat("Infection spread on edge", "(", j, ",", k, ") with ID ")
           print(get.edgeIDs(socio.net, j, alter = k))
         }
@@ -285,7 +292,7 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.inf
     Z <- Z + Z.next
     Z.prev <- Z.next
 
-    if (verbose) {
+    if (opts$verbose) {
       cat("Z: ", Z, "\n")
     }
 

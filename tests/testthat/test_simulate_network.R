@@ -72,15 +72,15 @@ test_that("Test spread.infection", {
 
   # Test error checking for initial.infect.method variable
   expect_error(spread.infection(net, 0.2, 0.1, "invalid"), regexp = "initial.infect.method incorrectly specified")
-  expect_error(spread.infection(net, 0.2, 0.1, "nodes_fixed", 10), regexp = "num.infect must be between 1 and the number of nodes in the network")
-  expect_error(spread.infection(net, 0.2, 0.1, "nodes_fixed", 0), regexp = "num.infect must be between 1 and the number of nodes in the network")
+  expect_error(spread.infection(net, 0.2, 0.1, "nodes_fixed", options = list(num.infect = 10)), regexp = "num.infect must be between 1 and the number of nodes in the network")
+  expect_error(spread.infection(net, 0.2, 0.1, "nodes_fixed", options = list(num.infect = 0)), regexp = "num.infect must be between 1 and the number of nodes in the network")
 
   # Test that number of infected nodes in Z0 matches given number, if number of infected nodes is fixed ahead of time
-  result <- spread.infection(net, NULL, 0.1, "nodes_fixed", 3)
+  result <- spread.infection(net, NULL, 0.1, "nodes_fixed", options = list(num.infect = 3))
   expect_equal(sum(result$Z0), 3)
 
   # Test that spreading infection with fixed Z0 and W gives expected results
-  result <- spread.infection(net, NULL, NULL, "nodes", NULL, FALSE, Z0, W)
+  result <- spread.infection(net, NULL, NULL, "nodes", options = list(Z0.fixed = Z0, W.fixed = W))
   expect_equal(result$Z0, Z0)
   expect_equal(result$Z, Z.expect)
   expect_true(all(as.sociomatrix(result$W.net) == W))
