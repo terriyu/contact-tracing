@@ -7,6 +7,7 @@
 # IDEA: Simulate other types of networks?  Directed networks?
 
 # Load network package without all the startup messages
+# NOTE: Potential conflict with sna package for operator %c%
 suppressMessages(library(network))
 
 .create.edge.prob.mtx <- function(nodes.per.class, P.ij) {
@@ -242,6 +243,9 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, num.inf
   }
 
   # ---------- GENERATE FULL INFECTION Z ---------- #
+
+  # QUESTION: Could be much faster and simpler just to compute the
+  #           reachability matrix using the SNA library
 
   # Current infected nodes
   Z <- Z0
