@@ -75,7 +75,7 @@ sim.data.list <- replicate(num.sims, list())
 for (i in 1:num.sims) {
   # Generate network and spread infection
   socio.net <- generate.network(num.nodes, p)
-  spread.result <- spread.infection(socio.net, eta, tau, initial.infect.method, num.infect)
+  spread.result <- spread.infection(socio.net, eta, tau, initial.infect.method, options = list(num.infect = num.infect))
   # Unpack network and disease results
   Z0 <- spread.result$Z0                    # Initial infected nodes
   Z <- spread.result$Z                      # Infected nodes
@@ -83,7 +83,7 @@ for (i in 1:num.sims) {
   disease.net <- spread.result$disease.net  # Network with disease attributes
 
   # Perform contact tracing sample
-  samp.result <- ct.sample(disease.net, sigma, ct.design, size.S0, num.waves, p.trace.infected, p.trace.uninfected)
+  samp.result <- ct.sample(disease.net, sigma, ct.design, options = list(size.S0 = size.S0, num.waves = num.waves, p.trace.infected = p.trace.infected, p.trace.uninfected = p.trace.uninfected)
   # Unpack sampling results
   S0 <- samp.result$S0  # Initial sampled nodes
   S <- samp.result$S    # Sampled nodes
