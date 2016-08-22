@@ -150,19 +150,21 @@ compute.dst.df <- function(root, subgraph) {
   return(directed.edges.list)
 }
 
-estimate.initial.params <- function(Y.obs, Z.obs, S, ct.design, class.labels) {
+estimate.initial.params <- function(obs, ct.design, class.labels) {
   # Estimate initial model parameters P.ij, eta, and tau for MLE
   #
   # NOTE: We don't estimate sigma, because we use missing-at-random assumption,
   #       and therefore sampling parameters can be ignored
   #
   # Args:
-  #   Y.obs - observed network, derived from sample
-  #   Z.obs - observed infection, derived from sample
-  #   S - contact tracing sample as vector
+  #   [obs is a list of the observed network, infection, and sample]
+  #   obs$Y.obs - observed network, derived from sample
+  #   obs$Z.obs - observed infection, derived from sample
+  #   obs$S - contact tracing sample as vector
+  #
   #   ct.design - contact tracing design used for sample: "infected_only",
   #               "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
-  #   class.labels - class labels (string) for each node, as vector of strings
+  #   class.labels - class label (string) for each node, as vector of strings
   #
   # Returns:
   #   P.ij0 - square, symmetric matrix containing probabilities; each entry
@@ -172,29 +174,29 @@ estimate.initial.params <- function(Y.obs, Z.obs, S, ct.design, class.labels) {
 
   # ---------- ERROR CHECKING ---------- #
 
-  dims <- c(dim(Y.obs)[1], dim(Y.obs)[2], length(Z.obs), length(class.labels))
-  if (! all(dims == length(S))) {
-    stop("Number of nodes inconsistent for one of Y.obs, Z.obs, S, class.labels")
+  dims <- c(dim(obs$Y.obs)[1], dim(obs$Y.obs)[2], length(obs$Z.obs), length(class.labels))
+  if (! all(dims == length(obs$S))) {
+    stop("Number of nodes inconsistent for one of obs$Y.obs, obs$Z.obs, obs$S, class.labels")
   }
 
-  if (! (all(Y.obs == 0 | Y.obs == 1))) {
-    stop("Y.obs needs to be a matrix of 0's and 1's")
+  if (! (all(obs$Y.obs == 0 | obs$Y.obs == 1))) {
+    stop("obs$Y.obs needs to be a matrix of 0's and 1's")
   }
 
-  if (! (all(Z.obs == 0 | Z.obs == 1))) {
-    stop("Z needs to be a vector of 0's and 1's")
+  if (! (all(obs$Z.obs == 0 | obs$Z.obs == 1))) {
+    stop("obs$Z.obs needs to be a vector of 0's and 1's")
   }
 
-  if (! (all(S == 0 | S == 1))) {
-    stop("S needs to be a vector of 0's and 1's")
+  if (! (all(obs$S == 0 | obs$S == 1))) {
+    stop("obs$S needs to be a vector of 0's and 1's")
   }
 
-  if (dim(Y.obs)[1] != dim(Y.obs)[2]) {
-    stop("Y.obs is not a square matrix")
+  if (dim(obs$Y.obs)[1] != dim(obs$Y.obs)[2]) {
+    stop("obs$Y.obs is not a square matrix")
   }
 
-  if (sum(diag(Y.obs)) != 0) {
-    stop("Y.obs must have zero diagonal")
+  if (sum(diag(obs$Y.obs)) != 0) {
+    stop("obs$Y.obs must have zero diagonal")
   }
 
   # ----------- CALCULATE USEFUL VARIABLES ---------- #
@@ -203,7 +205,7 @@ estimate.initial.params <- function(Y.obs, Z.obs, S, ct.design, class.labels) {
   num.classes <- length(unique(class.labels))
 
   # Compute design matrix
-  design.mtx <- compute.design.mtx(Z.obs, S, ct.design)
+  design.mtx <- compute.design.mtx(obs$Z.obs, obs$S, ct.design)
 
   # ---------- INITIAL ESTIMATE FOR P.ij ---------- #
 
@@ -213,7 +215,7 @@ estimate.initial.params <- function(Y.obs, Z.obs, S, ct.design, class.labels) {
     ones <- rep(1, num.nodes)
 
     # Number of observed links
-    num.links.obs <- t(ones) %*% Y.obs %*% ones
+    num.links.obs <- t(ones) %*% obs$Y.obs %*% ones
     # Number of possible links
     num.links <- t(ones) %*% design.mtx %*% ones
     # Set initial parameter estimate to proportion of observed links
@@ -235,7 +237,7 @@ estimate.initial.params <- function(Y.obs, Z.obs, S, ct.design, class.labels) {
           ones.ii<- rep(1, dim.ii)
 
           # Extract sub-matrix of observed network corresponding to class i
-          Y.obs.ii<- Y.obs[class.labels == unique.labels[i]]
+          Y.obs.ii<- obs$Y.obs[class.labels == unique.labels[i]]
           # Extract sub-matrix of design matrix corresponding to class i
           design.mtx.ii <- design.mtx[class.labels == unique.labels[i]]
 
@@ -263,11 +265,11 @@ estimate.initial.params <- function(Y.obs, Z.obs, S, ct.design, class.labels) {
           ones.ij <- rep(1, dim.ij)
 
           # Extract sub-matrix of observed network corresponding to class i
-          Y.obs.ii <-  Y.obs[class.labels == unique.labels[i]]
+          Y.obs.ii <-  obs$Y.obs[class.labels == unique.labels[i]]
           # Extract sub-matrix of observed network corresponding to class j
-          Y.obs.jj <-  Y.obs[class.labels == unique.labels[j]]
+          Y.obs.jj <-  obs$Y.obs[class.labels == unique.labels[j]]
           # Extract sub-matrix of observed network corresponding to classes i and j
-          Y.obs.ij <- Y.obs[class.labels == unique.labels[i] | class.labels == unique.labels[j]]
+          Y.obs.ij <- obs$Y.obs[class.labels == unique.labels[i] | class.labels == unique.labels[j]]
 
           # Extract sub-matrix of design matrix corresponding to class i
           design.mtx.ii <- design.mtx[class.labels == unique.labels[i]]
@@ -305,10 +307,10 @@ estimate.initial.params <- function(Y.obs, Z.obs, S, ct.design, class.labels) {
 
   # Compute number of infected subgraphs
 
-  Y.obs.infected <- Y.obs
+  Y.obs.infected <- obs$Y.obs
   # Remove all links to observed uninfected nodes
-  Y.obs.infected[(Z.obs == 0) & (S == 1), ] <- 0
-  Y.obs.infected[ , (Z.obs == 0) & (S == 1)] <- 0
+  Y.obs.infected[(obs$Z.obs == 0) & (obs$S == 1), ] <- 0
+  Y.obs.infected[ , (obs$Z.obs == 0) & (obs$S == 1)] <- 0
 
   cd.result <- component.dist(Y.obs.infected)
   cd.cdist <- cd.result$cdist
@@ -318,7 +320,7 @@ estimate.initial.params <- function(Y.obs, Z.obs, S, ct.design, class.labels) {
   # Number of infected subgraphs with size greater than 1
   Q <- sum(cd.cdist[-1])
   # Add number of infected subgraphs with size 1
-  Q <- Q + sum(cd.csize[cd.membership[Z.obs == 1]] == 1)
+  Q <- Q + sum(cd.csize[cd.membership[obs$Z.obs == 1]] == 1)
 
   # Initial estimate for eta
   eta0 <- Q / (t(S) %*% ones)
@@ -332,9 +334,9 @@ estimate.initial.params <- function(Y.obs, Z.obs, S, ct.design, class.labels) {
 
   # Initial estimate for tau
   # Number of transmission events which occurred
-  A <- t(Z.obs) %*% ones - Q
+  A <- t(obs$Z.obs) %*% ones - Q
   # Number of possible transmission events
-  B <- t(Z.obs) %*% Y.obs %*% ones
+  B <- t(obs$Z.obs) %*% obs$Y.obs %*% ones
   tau0 <- A / B
 
   # Error checking for tau
@@ -346,17 +348,19 @@ estimate.initial.params <- function(Y.obs, Z.obs, S, ct.design, class.labels) {
   return(list(P.ij0 = P.ij0, eta0 = eta0, tau0 = tau0))
 }
 
-initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, params) {
+initial.mcmc.sample <- function(obs, class.labels, params) {
   # Draw initial MCMC sample based on initial model parameters
   # NOTE: params are in members of a list, e.g params = list(P.ij0 = P.ij0, eta0 = eta0, tau0 = tau0)
   #
   # Args:
-  #   Y.obs - observed network, derived from sample
-  #   Z.obs - observed infection, derived from sample
-  #   S - contact tracing sample as vector
+  #   [obs is a list of observed network, infection, and sample
+  #   obs$Y.obs - observed network, derived from sample
+  #   obs$Z.obs - observed infection, derived from sample
+  #   obs$S - contact tracing sample as vector
+  #
   #   class.labels - class labels (string) for each node, as vector of strings
   #
-  #   [params is a list]
+  #   [params is a list of model parameters]
   #   params$P.ij0 - square, symmetric matrix containing probabilities; each entry
   #                  is the probability of a link between node class i and node class j
   #   params$eta0 - Bernoulli process parameter for initial infection
@@ -370,29 +374,29 @@ initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, params) {
   # ---------- ERROR CHECKING ---------- #
 
   # Compute dimensions of input variables
-  dims <- c(dim(Y.obs)[1], dim(Y.obs)[2], length(Z.obs), length(class.labels))
+  dims <- c(dim(obs$Y.obs)[1], dim(obs$Y.obs)[2], length(obs$Z.obs), length(class.labels))
   if (! all(dims == length(S))) {
-    stop("Number of nodes inconsistent for one of Y.obs, Z.obs, S, class.labels")
+    stop("Number of nodes inconsistent for one of obs$Y.obs, obs$Z.obs, obs$S, class.labels")
   }
 
-  if (! (all(Y.obs == 0 | Y.obs == 1))) {
-    stop("Y.obs needs to be a matrix of 0's and 1's")
+  if (! (all(obs$Y.obs == 0 | obs$Y.obs == 1))) {
+    stop("obs$Y.obs needs to be a matrix of 0's and 1's")
   }
 
-  if (! (all(Z.obs == 0 | Z.obs == 1))) {
-    stop("Z needs to be a vector of 0's and 1's")
+  if (! (all(obs$Z.obs == 0 | obs$Z.obs == 1))) {
+    stop("obs$Z.obs needs to be a vector of 0's and 1's")
   }
 
-  if (! (all(S == 0 | S == 1))) {
-    stop("S needs to be a vector of 0's and 1's")
+  if (! (all(obs$S == 0 | obs$S == 1))) {
+    stop("obs$S needs to be a vector of 0's and 1's")
   }
 
-  if (dim(Y.obs)[1] != dim(Y.obs)[2]) {
-    stop("Y.obs is not a square matrix")
+  if (dim(obs$Y.obs)[1] != dim(obs$Y.obs)[2]) {
+    stop("obs$Y.obs is not a square matrix")
   }
 
-  if (sum(diag(Y.obs)) != 0) {
-    stop("Y.obs must have zero diagonal")
+  if (sum(diag(obs$Y.obs)) != 0) {
+    stop("obs$Y.obs must have zero diagonal")
   }
 
   if (! is.null(params$eta0)) {
@@ -437,14 +441,14 @@ initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, params) {
   num.classes <- length(unique(class.labels))
 
   # Compute design matrix
-  design.mtx <- compute.design.mtx(Z.obs, S, ct.design)
+  design.mtx <- compute.design.mtx(obs$Z.obs, obs$S, ct.design)
 
   # Boolean matrix of unobserved links in upper triangle
   unobserved.links <- (design.mtx == 0) & upper.tri(design.mtx)
   num.unobserved.links <- sum(unobserved.links)
   unobserved.indices <- which(unobserved.links, arr.ind = TRUE)
 
-  Y <- Y.obs
+  Y <- obs$Y.obs
   # Set lower triangle to 0, will fill in later
   Y[lower.tri(Y)] <- 0
 
@@ -476,10 +480,10 @@ initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, params) {
 
   # ---------- PERFORM Z0 AND W SAMPLES ---------- #
 
-  Y.obs.infected <- Y.obs
+  Y.obs.infected <- obs$Y.obs
   # Remove all links to observed uninfected nodes
-  Y.obs.infected[(Z.obs == 0) & (S == 1), ] <- 0
-  Y.obs.infected[ , (Z.obs == 0) & (S == 1)] <- 0
+  Y.obs.infected[(obs$Z.obs == 0) & (obs$S == 1), ] <- 0
+  Y.obs.infected[ , (obs$Z.obs == 0) & (obs$S == 1)] <- 0
 
   # Compute component distribution
   cd.result <- component.dist(Y.obs.infected)
@@ -500,7 +504,7 @@ initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, params) {
   # Loop through infected subgraphs
   for (i in 1:num.subgraphs) {
     # Boolean vector for infected nodes in subgraph i
-    subgraph.infected.nodes <- (cd.membership == i) & (Z.obs == 1)
+    subgraph.infected.nodes <- (cd.membership == i) & (obs$Z.obs == 1)
 
     # If subgraph i is infected, set one of its infected nodes to Z0 = 1
 
@@ -543,18 +547,18 @@ initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, params) {
   # Set values for all other nodes in Z0
 
   # Any other observed nodes (not already set) are set to 0
-  Z0[is.na(Z0) & (S == 1)] <- 0
+  Z0[is.na(Z0) & (obs$S == 1)] <- 0
   # Unobserved nodes randomly infected with Bernoulli process
-  Z0[is.na(Z0) & (S == 0)] <- rbinom(sum(is.na(Z0) & (S == 0)), 1, params$eta0)
+  Z0[is.na(Z0) & (obs$S == 0)] <- rbinom(sum(is.na(Z0) & (obs$S == 0)), 1, params$eta0)
 
   ##########################################################################
   # QUESTION: alternative to the above, is this better???
   # Randomly set Z0 for observed infected nodes
-  #Z0[is.na(Z0) & (Z.obs == 1)] <- rbinom(sum(is.na(Z0) & (Z.obs == 1)), 1, params$eta0)
+  #Z0[is.na(Z0) & (obs$Z.obs == 1)] <- rbinom(sum(is.na(Z0) & (obs$Z.obs == 1)), 1, params$eta0)
   # Set Z0 = 0 for observed uninfected nodes
-  #Z0[is.na(Z0) & (Z.obs == 0) & (S == 1)] <- 0
+  #Z0[is.na(Z0) & (obs$Z.obs == 0) & (obs$S == 1)] <- 0
   # Unobserved nodes randomly infected with Bernoulli process
-  #Z0[is.na(Z0) & (S == 0)] <- rbinom(sum(is.na(Z0) & (S == 0)), 1, params$eta0)
+  #Z0[is.na(Z0) & (obs$S == 0)] <- rbinom(sum(is.na(Z0) & (obs$S == 0)), 1, params$eta0)
   ##########################################################################
 
   # NOTE: Krista's code performs the W sample in a different way
@@ -570,13 +574,13 @@ initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, params) {
   # Initialize all entries to 0
   Y.obs.untransmitted <- matrix(0, nrow = num.nodes, ncol = num.nodes)
   # Links from observed infected nodes to observed uninfected nodes could potentially be set
-  Y.obs.untransmitted[Z.obs == 1, (Z.obs == 0) & (S == 1)] <- 1
+  Y.obs.untransmitted[obs$Z.obs == 1, (obs$Z.obs == 0) & (obs$S == 1)] <- 1
   # Links from observed infected nodes to other observed infected nodes could potentially be set
   # QUESTION: Might delete line below, if we follow Krista's code?
-  Y.obs.untransmitted[Z.obs == 1, Z.obs == 1] <- 1
+  Y.obs.untransmitted[obs$Z.obs == 1, obs$Z.obs == 1] <- 1
   # Eliminate any links that are unobserved or which have already been set in W
   # HACK: R automatically casts (W == NA) from Boolean to integer matrix
-  Y.obs.untransmitted <- Y.obs.untransmitted * Y.obs * (W == NA)
+  Y.obs.untransmitted <- Y.obs.untransmitted * obs$Y.obs * (W == NA)
 
   # Set W = 0 according to Y.obs.untransmitted
   W[Y.obs.untransmitted == 1] <- 0
@@ -610,7 +614,7 @@ initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, params) {
     stop("Error calculating initial MCMC sample: All entries of W matrix must be 0 or 1")
   }
 
-  # Check that Z0 and W from MCMC sample is consistent with Z.obs
+  # Check that Z0 and W from MCMC sample is consistent with obs$Z.obs
 
   # Compute reachability matrix
   R.D <- reachability(W * Y)
@@ -619,8 +623,8 @@ initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, params) {
   Z[Z > 0] <- 1
 
   # FIXME: Should get rid of this error message
-  if (! all(Z[S == 1] == Z.obs[S == 1])) {
-    stop("Error calculating initial MCMC sample: Sample inconsistent with Z.obs")
+  if (! all(Z[obs$S == 1] == obs$Z.obs[obs$S == 1])) {
+    stop("Error calculating initial MCMC sample: Sample inconsistent with obs$Z.obs")
   }
 
   # Return sample for Y, Z0, and W
