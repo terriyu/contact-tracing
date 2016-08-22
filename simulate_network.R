@@ -147,6 +147,8 @@ spread.infection <- function(socio.net, eta, tau, initial.infect.method, options
   #   options$Z0.fixed - vector of initial infected nodes (only use for debugging/testing)
   #   options$W.fixed - infection trasmission matrix (only use for debugging/testing)
   #
+  #     Set optional arguments as members of list, e.g. "options = list(num.infect = 5)"
+  #
   # Returns:
   #   Z0 - vector of initial infected nodes (1 for infected, 0 for not infected)
   #   Z - vector of final infected nodes (1 for infected, 0 for not infected)

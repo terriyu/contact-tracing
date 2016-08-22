@@ -72,8 +72,8 @@ test_that("Test spread.infection", {
 
   # Test error checking for initial.infect.method variable
   expect_error(spread.infection(net, 0.2, 0.1, "invalid"), regexp = "initial.infect.method incorrectly specified")
-  expect_error(spread.infection(net, 0.2, 0.1, "nodes_fixed", options = list(num.infect = 10)), regexp = "num.infect must be between 1 and the number of nodes in the network")
-  expect_error(spread.infection(net, 0.2, 0.1, "nodes_fixed", options = list(num.infect = 0)), regexp = "num.infect must be between 1 and the number of nodes in the network")
+  expect_error(spread.infection(net, 0.2, 0.1, "nodes_fixed", options = list(num.infect = 10)), regexp = "options\\$num.infect must be between 1 and the number of nodes in the network")
+  expect_error(spread.infection(net, 0.2, 0.1, "nodes_fixed", options = list(num.infect = 0)), regexp = "options\\$num.infect must be between 1 and the number of nodes in the network")
 
   # Test that number of infected nodes in Z0 matches given number, if number of infected nodes is fixed ahead of time
   result <- spread.infection(net, NULL, 0.1, "nodes_fixed", options = list(num.infect = 3))
