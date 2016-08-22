@@ -75,21 +75,21 @@ test_that("Test ct.sample", {
   expect_error(ct.sample(disease.net, -1, "infected_only"), regexp = "Bernoulli process parameter sigma must be between 0 and 1")
   expect_error(ct.sample(disease.net, 99, "infected_only"), regexp = "Bernoulli process parameter sigma must be between 0 and 1")
 
-  expect_error(ct.sample(disease.net, 0.2, "infected_only", NULL, NULL, -2), regexp = "p.trace.infected must be between 0 and 1")
-  expect_error(ct.sample(disease.net, 0.2, "infected_only", NULL, NULL, 256), regexp = "p.trace.infected must be between 0 and 1")
+  expect_error(ct.sample(disease.net, 0.2, "infected_only", options = list(p.trace.infected = -2)), regexp = "options\\$p.trace.infected must be between 0 and 1")
+  expect_error(ct.sample(disease.net, 0.2, "infected_only", options = list(p.trace.infected = 256)), regexp = "options\\$p.trace.infected must be between 0 and 1")
 
-  expect_error(ct.sample(disease.net, 0.2, "infected_only", NULL, NULL, 0.5, 137), regexp = "p.trace.uninfected must be between 0 and 1")
-  expect_error(ct.sample(disease.net, 0.2, "infected_only", NULL, NULL, 0.5, -5), regexp = "p.trace.uninfected must be between 0 and 1")
+  expect_error(ct.sample(disease.net, 0.2, "infected_only", options = list(p.trace.infected = 0.5, p.trace.uninfected = 137)), regexp = "options\\$p.trace.uninfected must be between 0 and 1")
+  expect_error(ct.sample(disease.net, 0.2, "infected_only", options = list (p.trace.infected = 0.5, p.trace.uninfected = -5)), regexp = "options\\$p.trace.uninfected must be between 0 and 1")
 
-  expect_error(ct.sample(disease.net, 0.2, "infected_only", NULL, NULL, 0.5, NULL), regexp = "Both p.trace.infected and p.trace.uninfected need to be specified")
-  expect_error(ct.sample(disease.net, 0.2, "infected_only", NULL, NULL, NULL, 0.5), regexp = "Both p.trace.infected and p.trace.uninfected need to be specified")
+  expect_error(ct.sample(disease.net, 0.2, "infected_only", options = list(p.trace.infected = 0.5)), regexp = "Both options\\$p.trace.infected and options\\$p.trace.uninfected need to be specified")
+  expect_error(ct.sample(disease.net, 0.2, "infected_only", options = list(p.trace.uninfected = 0.5)), regexp = "Both options\\$p.trace.infected and options\\$p.trace.uninfected need to be specified")
 
   expect_error(ct.sample("not a network", 0.2, "infected_only"), regexp = "disease.net is not a network class object")
 
-  expect_error(ct.sample(disease.net, 0.2, "infected_only", 0), regexp = "size.S0 must be between 1 and number of nodes")
-  expect_error(ct.sample(disease.net, 0.2, "infected_only", 10), regexp = "size.S0 must be between 1 and number of nodes")
+  expect_error(ct.sample(disease.net, 0.2, "infected_only", options = list(size.S0 = 0)), regexp = "options\\$size.S0 must be between 1 and number of nodes")
+  expect_error(ct.sample(disease.net, 0.2, "infected_only", options = list (size.S0 = 10)), regexp = "options\\$size.S0 must be between 1 and number of nodes")
 
-  expect_error(ct.sample(disease.net, 0.2, "infected_only", NULL, 0), regexp = "Number of waves needs to be at least 1")
+  expect_error(ct.sample(disease.net, 0.2, "infected_only", options = list(num.waves = 0)), regexp = "Number of waves needs to be at least 1")
 
   expect_error(ct.sample(disease.net, 0.2, "invalid_design"), regexp = "Invalid value specified for ct.design")
 
@@ -99,67 +99,67 @@ test_that("Test ct.sample", {
 
   # Test num.waves
   S0 <- c(0, 0, 0, 0, 0, 1)
-  result <- ct.sample(disease.net, NULL, "full_contact_components", NULL, 100, NULL, NULL, FALSE, S0)
+  result <- ct.sample(disease.net, NULL, "full_contact_components", options = list(num.waves = 100, S0.fixed = S0))
   expect_equal(result$S, c(0, 0, 0, 0, 0, 1))
 
   S0 <- c(1, 0, 0, 0, 0, 1)
-  result <- ct.sample(disease.net, NULL, "full_contact_components", NULL, 1, NULL, NULL, FALSE, S0)
+  result <- ct.sample(disease.net, NULL, "full_contact_components", options = list(num.waves = 1, S0.fixed = S0))
   expect_equal(result$S, c(1, 0, 1, 0, 0, 1))
 
   # Test "infected_only" design
   S0 <- c(1, 1, 1, 1, 1, 1)
-  result <- ct.sample(disease.net, NULL, "infected_only", NULL, NULL, NULL, NULL, FALSE, S0)
+  result <- ct.sample(disease.net, NULL, "infected_only", options = list(S0.fixed = S0))
   expect_equal(result$S0, Z)
 
   S0 <- c(0, 0, 0, 1, 0, 0)
-  result <- ct.sample(disease.net, NULL, "infected_only", NULL, NULL, NULL, NULL, FALSE, S0)
+  result <- ct.sample(disease.net, NULL, "infected_only", options = list(S0.fixed = S0))
   expect_equal(result$S, c(1, 1, 1, 1, 0, 0))
 
   # Test "infected_and_edge_units" design
   S0 <- c(0, 0, 0, 0, 0, 1)
-  result <- ct.sample(disease.net, NULL, "infected_and_edge_units", NULL, NULL, NULL, NULL, FALSE, S0)
+  result <- ct.sample(disease.net, NULL, "infected_and_edge_units", options = list(S0.fixed = S0))
   expect_equal(result$S0, S0)
   expect_equal(result$S, S0)
 
   S0 <- c(0, 0, 0, 1, 0, 0)
-  result <- ct.sample(disease.net, NULL, "infected_and_edge_units", NULL, NULL, NULL, NULL, FALSE, S0)
+  result <- ct.sample(disease.net, NULL, "infected_and_edge_units", options = list(S0.fixed = S0))
   expect_equal(result$S0, S0)
   expect_equal(result$S, c(1, 1, 1, 1, 1, 0))
 
   # Test "contacts_of_edge_units" design
   S0 <- c(0, 0, 0, 0, 0, 1)
-  result <- ct.sample(disease.net, NULL, "contacts_of_edge_units", NULL, NULL, NULL, NULL, FALSE, S0)
+  result <- ct.sample(disease.net, NULL, "contacts_of_edge_units", options = list(S0.fixed = S0))
   expect_equal(result$S0, S0)
   expect_equal(result$S, S0)
 
   S0 <- c(0, 0, 0, 1, 0, 0)
-  result <- ct.sample(disease.net, NULL, "contacts_of_edge_units", NULL, NULL, NULL, NULL, FALSE, S0)
+  result <- ct.sample(disease.net, NULL, "contacts_of_edge_units", options = list(S0.fixed = S0))
   expect_equal(result$S0, S0)
   expect_equal(result$S, c(1, 1, 1, 1, 1, 0))
 
   # Test "full_contact_components" design
   S0 <- c(0, 0, 0, 0, 0, 1)
-  result <- ct.sample(disease.net, NULL, "full_contact_components", NULL, NULL, NULL, NULL, FALSE, S0)
+  result <- ct.sample(disease.net, NULL, "full_contact_components", options = list(S0.fixed = S0))
   expect_equal(result$S0, S0)
   expect_equal(result$S, S0)
 
   S0 <- c(0, 0, 0, 0, 1, 0)
-  result <- ct.sample(disease.net, NULL, "full_contact_components", NULL, NULL, NULL, NULL, FALSE, S0)
+  result <- ct.sample(disease.net, NULL, "full_contact_components", options = list(S0.fixed = S0))
   expect_equal(result$S0, S0)
   expect_equal(result$S, c(1, 1, 1, 1, 1, 0))
 
   S0 <- c(0, 0, 0, 0, 1, 0)
-  result <- ct.sample(disease.net, NULL, "full_contact_components", NULL, NULL, 1, 1, FALSE, S0)
+  result <- ct.sample(disease.net, NULL, "full_contact_components", options = list(p.trace.infected = 1, p.trace.uninfected = 1, S0.fixed = S0))
   expect_equal(result$S0, S0)
   expect_equal(result$S, c(1, 1, 1, 1, 1, 0))
 
   S0 <- c(0, 0, 0, 0, 1, 0)
-  result <- ct.sample(disease.net, NULL, "full_contact_components", NULL, NULL, 0, 1, FALSE, S0)
+  result <- ct.sample(disease.net, NULL, "full_contact_components", options = list(p.trace.infected = 0, p.trace.uninfected = 1, S0.fixed = S0))
   expect_equal(result$S0, S0)
   expect_equal(result$S, S0)
 
   S0 <- c(0, 0, 0, 0, 1, 0)
-  result <- ct.sample(disease.net, NULL, "full_contact_components", NULL, NULL, 1, 0, FALSE, S0)
+  result <- ct.sample(disease.net, NULL, "full_contact_components", options = list(p.trace.infected = 1, p.trace.uninfected = 0, S0.fixed = S0))
   expect_equal(result$S0, S0)
   expect_equal(result$S, c(1, 1, 1, 1, 1, 0))
 })

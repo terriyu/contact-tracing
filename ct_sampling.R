@@ -63,7 +63,7 @@ suppressMessages(library(network))
   return(S.next)
 }
 
-ct.sample <- function(disease.net, sigma, ct.design, size.S0 = NULL, num.waves = NULL, p.trace.infected = NULL, p.trace.uninfected = NULL, verbose = FALSE, S0.fixed = NULL) {
+ct.sample <- function(disease.net, sigma, ct.design, options = list()) {
   # Perform contact tracing sample of an infected network
   #
   # Args:
@@ -71,38 +71,47 @@ ct.sample <- function(disease.net, sigma, ct.design, size.S0 = NULL, num.waves =
   #   sigma - Bernoulli parameter for initial sampling process
   #   ct.design - contact tracing design to use: "infected_only", "infected_and_edge_units",
   #               "contacts_of_edge_units", "full_contact_components"
-  #   size.S0 - [optional] fix size of initial sample to avoid returning empty sample
-  #   num.waves - [optional] number of waves to use in sampling
-  #                          (NULL if you keep sampling until no new nodes are sampled)
-  #   p.trace.infected - [optional] Bernoulli parameter for tracing infected contact
-  #   p.trace.uninfected - [optional] Bernoulli parameter for tracing uninfected contact
-  #   verbose - [optional] flag to print variables during sampling process (for debugging)
-  #   S0.fixed - [optional] nodes in initial sample (only use for debugging/testing)
+  #
+  #   [optional arguments]
+  #   options$size.S0 - fix size of initial sample to avoid returning empty sample
+  #   options$num.waves - number of waves to use in sampling
+  #                       (NULL if you keep sampling until no new nodes are sampled)
+  #   options$p.trace.infected - [optional] Bernoulli parameter for tracing infected contact
+  #   options$p.trace.uninfected - [optional] Bernoulli parameter for tracing uninfected contact
+  #   options$verbose - [optional] flag to print variables during sampling process (for debugging)
+  #   options$S0.fixed - [optional] nodes in initial sample (only use for debugging/testing)
+  #
+  #     Set optional arguments as members of list, e.g. "options = list(size.S0 = 5)"
   #
   # Returns:
   #   S0 - initial nodes sampled as vector
   #   S - full contact tracing sample as vector
 
+  # Set defaults for options
+  opts = list(size.S0 = NULL, num.waves = NULL, p.trace.infected = NULL, p.trace.uninfected = NULL, verbose = FALSE, S0.fixed = NULL)
+  # Fill in user-specified options
+  opts[names(options)] <- options
+
   # ---------- ERROR CHECKING ---------- #
 
-  # Error checking for sigma, p.trace.infected, and p.trace.uninfected
+  # Error checking for sigma, options$p.trace.infected, and options$p.trace.uninfected
   if (! is.null(sigma)) {
     if ((sigma < 0) | (sigma > 1)) {
       stop("Bernoulli process parameter sigma must be between 0 and 1")
     }
   }
-  if (! is.null(p.trace.infected)) {
-    if ((p.trace.infected < 0) | (p.trace.infected > 1)) {
-      stop("p.trace.infected must be between 0 and 1")
+  if (! is.null(opts$p.trace.infected)) {
+    if ((opts$p.trace.infected < 0) | (opts$p.trace.infected > 1)) {
+      stop("options$p.trace.infected must be between 0 and 1")
     }
   }
-  if (! is.null(p.trace.uninfected)) {
-    if ((p.trace.uninfected < 0) | (p.trace.uninfected > 1)) {
-      stop("p.trace.uninfected must be between 0 and 1")
+  if (! is.null(opts$p.trace.uninfected)) {
+    if ((opts$p.trace.uninfected < 0) | (opts$p.trace.uninfected > 1)) {
+      stop("options$p.trace.uninfected must be between 0 and 1")
     }
   }
-  if (xor(is.null(p.trace.infected), is.null(p.trace.uninfected))) {
-    stop("Both p.trace.infected and p.trace.uninfected need to be specified")
+  if (xor(is.null(opts$p.trace.infected), is.null(opts$p.trace.uninfected))) {
+    stop("Both options$p.trace.infected and options$p.trace.uninfected need to be specified")
   }
   if (class(disease.net) != "network") {
     stop("disease.net is not a network class object")
@@ -119,16 +128,16 @@ ct.sample <- function(disease.net, sigma, ct.design, size.S0 = NULL, num.waves =
 
   # ---------- PERFORM INITIAL SAMPLE ---------- #
 
-  if (! is.null(S0.fixed)) {
+  if (! is.null(opts$S0.fixed)) {
     # Initial sample is completely specified ahead of time
-    S0 <- S0.fixed
-  } else if (! is.null(size.S0)) {
-    if ((size.S0 < 1) | (size.S0 > num.nodes)) {
-      stop("size.S0 must be between 1 and number of nodes")
+    S0 <- opts$S0.fixed
+  } else if (! is.null(opts$size.S0)) {
+    if ((opts$size.S0 < 1) | (opts$size.S0 > num.nodes)) {
+      stop("options$size.S0 must be between 1 and number of nodes")
     }
     # Fixed number of nodes in initial sample
     S0 <- rep(0, num.nodes)
-    S0[sample(1:num.nodes, size.S0)] <- 1
+    S0[sample(1:num.nodes, opts$size.S0)] <- 1
   } else {
     # Homogenous Bernoulli sample with parameter sigma
     S0 <- rbinom(num.nodes, 1, sigma)
@@ -147,17 +156,17 @@ ct.sample <- function(disease.net, sigma, ct.design, size.S0 = NULL, num.waves =
   # Previous wave of samples
   S.prev <- S0
 
-  if (verbose) {
+  if (opts$verbose) {
     cat("S0:\n")
     print(S0)
   }
 
-  if (is.null(num.waves)) {
+  if (is.null(opts$num.waves)) {
     # Keep sampling until no new nodes sampled
     while (sum(S.prev) > 0) {
-      S.next <- .sample.next(S.prev, S, Z, socio.mtx, ct.design, p.trace.infected, p.trace.uninfected)
+      S.next <- .sample.next(S.prev, S, Z, socio.mtx, ct.design, opts$p.trace.infected, opts$p.trace.uninfected)
 
-      if (verbose) {
+      if (opts$verbose) {
         cat("S.next:\n")
         print(S.next)
       }
@@ -167,15 +176,15 @@ ct.sample <- function(disease.net, sigma, ct.design, size.S0 = NULL, num.waves =
       S.prev <- S.next
     }
   } else {
-    if (num.waves < 1) {
+    if (opts$num.waves < 1) {
       stop("Number of waves needs to be at least 1")
     }
 
     # Sample for num.waves
-    for (i in 1:num.waves) {
-      S.next <- .sample.next(S.prev, S, Z, socio.mtx, ct.design, p.trace.infected, p.trace.uninfected)
+    for (i in 1:opts$num.waves) {
+      S.next <- .sample.next(S.prev, S, Z, socio.mtx, ct.design, opts$p.trace.infected, opts$p.trace.uninfected)
 
-      if (verbose) {
+      if (opts$verbose) {
         cat("S.next:\n")
         print(S.next)
       }
