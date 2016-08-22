@@ -12,6 +12,10 @@
 # NOTE: Potential conflict with network package for operator %c%
 suppressMessages(library(sna))
 
+####################################################################################
+############# FUNCTIONS FOR INITIAL PARAMETERS AND INITIAL MCMC SAMPLE #############
+####################################################################################
+
 compute.dst.bf <- function(root, subgraph) {
   # Compute directed spanning tree of unweighted connected subgraph
   # Uses breadth-first traversal
@@ -144,10 +148,6 @@ compute.dst.df <- function(root, subgraph) {
   }
 
   return(directed.edges.list)
-}
-
-toggle.binary.int <- function(binary.int) {
-  return(as.integer(! binary.int))
 }
 
 estimate.initial.params <- function(Y.obs, Z.obs, S, ct.design, class.labels) {
@@ -305,7 +305,6 @@ estimate.initial.params <- function(Y.obs, Z.obs, S, ct.design, class.labels) {
 
   # Compute number of infected subgraphs
 
-  # QUESTION: Best way to compute number of infected subgraphs for full contact components design?
   Y.obs.infected <- Y.obs
   # Remove all links to observed uninfected nodes
   Y.obs.infected[(Z.obs == 0) & (S == 1), ] <- 0
@@ -347,24 +346,30 @@ estimate.initial.params <- function(Y.obs, Z.obs, S, ct.design, class.labels) {
   return(list(P.ij0 = P.ij0, eta0 = eta0, tau0 = tau0))
 }
 
-initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, P.ij0, eta0, tao0) {
-  # Draw initial MCMC sample based on initial model parameters P.ij0, eta0, and tau0
+initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, params) {
+  # Draw initial MCMC sample based on initial model parameters
+  # NOTE: params are in members of a list, e.g params = list(P.ij0 = P.ij0, eta0 = eta0, tau0 = tau0)
   #
   # Args:
   #   Y.obs - observed network, derived from sample
   #   Z.obs - observed infection, derived from sample
   #   S - contact tracing sample as vector
   #   class.labels - class labels (string) for each node, as vector of strings
-  #   P.ij0 - square, symmetric matrix containing probabilities; each entry
-  #          is the probability of a link between node class i and node class j
-  #   eta0 - Bernoulli process parameter for initial infection
-  #   tau0 - Bernoulli process parameter for generating transmission matrix
+  #
+  #   [params is a list]
+  #   params$P.ij0 - square, symmetric matrix containing probabilities; each entry
+  #                  is the probability of a link between node class i and node class j
+  #   params$eta0 - Bernoulli process parameter for initial infection
+  #   params$tau0 - Bernoulli process parameter for generating transmission matrix
   #
   # Returns:
-  #   sample
+  #   Y - network sample (matrix)
+  #   Z0 - initial infection sample (vector)
+  #   W - transmissibility matrix sample (matrix)
 
   # ---------- ERROR CHECKING ---------- #
 
+  # Compute dimensions of input variables
   dims <- c(dim(Y.obs)[1], dim(Y.obs)[2], length(Z.obs), length(class.labels))
   if (! all(dims == length(S))) {
     stop("Number of nodes inconsistent for one of Y.obs, Z.obs, S, class.labels")
@@ -390,38 +395,38 @@ initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, P.ij0, eta0, tao0
     stop("Y.obs must have zero diagonal")
   }
 
-  if (! is.null(eta0)) {
-    if ((eta0 < 0) | (eta0 > 1)) {
+  if (! is.null(params$eta0)) {
+    if ((params$eta0 < 0) | (params$eta0 > 1)) {
       stop("Bernoulli process parameter eta must be between 0 and 1")
     }
   }
 
-  if (! is.null(tau)) {
-    if ((tau0 < 0) | (tau0 > 1)) {
+  if (! is.null(params$tau0)) {
+    if ((params$tau0 < 0) | (params$tau0 > 1)) {
       stop("Bernoulli process parameter tau must be between 0 and 1")
     }
   }
 
-  # Error checking: check that P.ij0 is square matrix
-  if (length(P.ij0) > 1) {
-    if (dim(P.ij0)[1] != dim(P.ij0)[2]) {
-      stop("P.ij0 not a square matrix")
+  # Error checking: check that params$P.ij0 is square matrix
+  if (length(params$P.ij0) > 1) {
+    if (dim(params$P.ij0)[1] != dim(params$P.ij0)[2]) {
+      stop("params$P.ij0 not a square matrix")
     }
   }
 
-  # Error checking: check that P.ij0 is symmetric matrix
+  # Error checking: check that params$P.ij0 is symmetric matrix
   # Probability of link between class i and class j should be same as
   # probability of link between class j and class i
-  if (! all(P.ij0 == t(P.ij0))) {
-    stop("P.ij0 is not symmetric")
+  if (! all(params$P.ij0 == t(params$P.ij0))) {
+    stop("params$P.ij0 is not symmetric")
   }
 
-  # Error checking: check that class.labels and P.ij0 are consistent
-  if (length(P.ij0) > 1) {
+  # Error checking: check that class.labels and params$P.ij0 are consistent
+  if (length(params$P.ij0) > 1) {
     # Number of classes
     num.classes <- length(unique(class.labels))
-    if (num.classes != dim(P.ij0)[1]) {
-      stop("class.labels and P.ij0 are inconsistent")
+    if (num.classes != dim(params$P.ij0)[1]) {
+      stop("class.labels and params$P.ij0 are inconsistent")
     }
   }
 
@@ -444,12 +449,12 @@ initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, P.ij0, eta0, tao0
   Y[lower.tri(Y)] <- 0
 
   if (num.classes == 1) {
-    # Only one class, so P.ij0 is a scalar
-    Y[unobserved.indices] <- rbinom(sum(unobserved.links), 1, P.ij0)
+    # Only one class, so params$P.ij0 is a scalar
+    Y[unobserved.indices] <- rbinom(sum(unobserved.links), 1, params$P.ij0)
   } else {
     # Case of multiple classes
     for (i in 1:num.unobserved.links) {
-      bernoulli.prob <- P.ij0(unobserved.indices[i, 1], unobserved.indices[i, 2])
+      bernoulli.prob <- params$P.ij0(unobserved.indices[i, 1], unobserved.indices[i, 2])
       Y[unobserved.indices[i, ]] <- rbinom(1, 1, bernoulli.prob)
     }
   }
@@ -471,7 +476,6 @@ initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, P.ij0, eta0, tao0
 
   # ---------- PERFORM Z0 AND W SAMPLES ---------- #
 
-  # QUESTION: Best way to compute number of infected subgraphs for full contact components design?
   Y.obs.infected <- Y.obs
   # Remove all links to observed uninfected nodes
   Y.obs.infected[(Z.obs == 0) & (S == 1), ] <- 0
@@ -535,13 +539,25 @@ initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, P.ij0, eta0, tao0
     }
   }
 
-  # QUESTION: PhD thesis and Krista's code are different
+  # NOTE: PhD thesis and Krista's code are different
   # Set values for all other nodes in Z0
 
   # Any other observed nodes (not already set) are set to 0
   Z0[is.na(Z0) & (S == 1)] <- 0
   # Unobserved nodes randomly infected with Bernoulli process
-  Z0[is.na(Z0) & (S == 0)] <- rbinom(sum(is.na(Z0) & (S == 0)), 1, eta0)
+  Z0[is.na(Z0) & (S == 0)] <- rbinom(sum(is.na(Z0) & (S == 0)), 1, params$eta0)
+
+  ##########################################################################
+  # QUESTION: alternative to the above, is this better???
+  # Randomly set Z0 for observed infected nodes
+  #Z0[is.na(Z0) & (Z.obs == 1)] <- rbinom(sum(is.na(Z0) & (Z.obs == 1)), 1, params$eta0)
+  # Set Z0 = 0 for observed uninfected nodes
+  #Z0[is.na(Z0) & (Z.obs == 0) & (S == 1)] <- 0
+  # Unobserved nodes randomly infected with Bernoulli process
+  #Z0[is.na(Z0) & (S == 0)] <- rbinom(sum(is.na(Z0) & (S == 0)), 1, params$eta0)
+  ##########################################################################
+
+  # NOTE: Krista's code performs the W sample in a different way
 
   # Set W = 0 for observed links originating from observed infected nodes
   # Only do this, if W has not already been set for links (entry not NA)
@@ -556,30 +572,19 @@ initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, P.ij0, eta0, tao0
   # Links from observed infected nodes to observed uninfected nodes could potentially be set
   Y.obs.untransmitted[Z.obs == 1, (Z.obs == 0) & (S == 1)] <- 1
   # Links from observed infected nodes to other observed infected nodes could potentially be set
+  # QUESTION: Might delete line below, if we follow Krista's code?
   Y.obs.untransmitted[Z.obs == 1, Z.obs == 1] <- 1
   # Eliminate any links that are unobserved or which have already been set in W
   # HACK: R automatically casts (W == NA) from Boolean to integer matrix
   Y.obs.untransmitted <- Y.obs.untransmitted * Y.obs * (W == NA)
 
-  # QUESTION: Krista seems to perform the W sample in a more simplified way
   # Set W = 0 according to Y.obs.untransmitted
   W[Y.obs.untransmitted == 1] <- 0
 
+  # QUESTION: Should links from unsampled nodes to observed uninfected nodes
+  #           have W = 0?
   # Any unset entries in W are assigned by Bernoulli process
-  W[is.na(W)] <- rbinom(sum(is.na(W)), 1, tau0)
-
-  # Check that Z0 and W from MCMC sample is consistent with Z.obs
-
-  # Compute reachability matrix
-  R.D <- reachability(W * Y)
-  # Compute resulting infection
-  Z <- Z0 %*% R.D
-  Z[Z > 0] <- 1
-
-  # FIXME: Should get rid of this error message
-  if (! all(Z[S == 1] == Z.obs[S == 1])) {
-    stop("Error calculating initial MCMC sample: Sample inconsistent with Z.obs")
-  }
+  W[is.na(W)] <- rbinom(sum(is.na(W)), 1, params$tau0)
 
   # Error checking for Z0
 
@@ -605,6 +610,25 @@ initial.mcmc.sample <- function(Y.obs, Z.obs, S, class.labels, P.ij0, eta0, tao0
     stop("Error calculating initial MCMC sample: All entries of W matrix must be 0 or 1")
   }
 
+  # Check that Z0 and W from MCMC sample is consistent with Z.obs
+
+  # Compute reachability matrix
+  R.D <- reachability(W * Y)
+  # Compute resulting infection
+  Z <- Z0 %*% R.D
+  Z[Z > 0] <- 1
+
+  # FIXME: Should get rid of this error message
+  if (! all(Z[S == 1] == Z.obs[S == 1])) {
+    stop("Error calculating initial MCMC sample: Sample inconsistent with Z.obs")
+  }
+
   # Return sample for Y, Z0, and W
   return(list(Y = Y, Z0 = Z0, W = W))
+}
+
+############### TOGGLE FUNCTIONS ###############
+
+toggle.binary.int <- function(binary.int) {
+  return(as.integer(! binary.int))
 }
