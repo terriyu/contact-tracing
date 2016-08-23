@@ -10,15 +10,15 @@
 # NOTE: Potential conflict with sna package for operator %c%
 suppressMessages(library(network))
 
-.create.edge.prob.mtx <- function(nodes.per.class, P.ij) {
+create.edge.prob.mtx <- function(class.labels, P.ij) {
   # Creates a matrix whose entries are probabilities that an edge will link
   # each pair of nodes
   #
   # NOTE: This is a private helper function for generate.network()
   #
   # Args:
-  #   nodes.per.class - vector containing the number of nodes in class 1,
-  #                     the number of nodes in class 2, etc.
+  #   class.labels - class label (string) for each node, as vector of strings;
+  #                  each label must be in 1:num.nodes
   #   P.ij - square, symmetric matrix containing probabilities; each entry
   #          is the probability of a link between node class i and node class j
   #
@@ -28,17 +28,15 @@ suppressMessages(library(network))
   #                   the total number of nodes over classes
 
   # Number of classes
-  num.classes <- length(nodes.per.class)
+  num.classes <- length(unique(class.labels))
   # Number of nodes in network
-  num.nodes <- sum(nodes.per.class)
+  num.nodes <- length(class.labels)
 
   # Case where there is only one node class
   if ((num.classes == 1) && (length(P.ij) == 1)) {
-    edge.prob.mtx <- matrix(P.ij, nrow = nodes.per.class, ncol = nodes.per.class)
+    edge.prob.mtx <- matrix(P.ij, nrow = num.nodes, ncol = num.nodes)
   # Case where there is more than one node class
   } else {
-    # Vector where the value of entry i is the class for node i
-    node.class.vec <- rep(1:num.classes, times = nodes.per.class)
     # Row and column indices for each entry in a num.nodes x num.nodes matrix
     # Hack for using mapply
     row.indices <- rep(1:num.nodes, each = num.nodes)
@@ -46,7 +44,7 @@ suppressMessages(library(network))
     # For each pair of nodes i and j, compute probability of link between them
     # The probability is determined by the classes of node i and j
     # We use mapply to vectorize this calculation and avoid for loops
-    edge.prob.mtx <- matrix(mapply(function(i, j) P.ij[node.class.vec[i], node.class.vec[j]], row.indices, col.indices), nrow = num.nodes, ncol = num.nodes)
+    edge.prob.mtx <- matrix(mapply(function(i, j) P.ij[class.labels[i], class.labels[j]], row.indices, col.indices), nrow = num.nodes, ncol = num.nodes)
   }
   # Set diagonal of matrix to zero (node can't be linked to itself)
   diag(edge.prob.mtx) <- 0
@@ -54,17 +52,17 @@ suppressMessages(library(network))
   return(edge.prob.mtx)
 }
 
-generate.network <- function(nodes.per.class, P.ij, class.names = NULL) {
-  # Generates a network simulated according to nodes.per.class and the
+generate.network <- function(class.labels, P.ij, class.names = NULL) {
+  # Generates a network simulated according to class.labels and the
   # probability matrix for links between nodes of different classes P.ij
   #
   # Args:
-  #   nodes.per.class - vector containing the number of nodes in class 1,
-  #                     the number of nodes in class 2, etc.
+  #   class.labels - class label (string) for each node, as vector of strings;
+  #                  each label must be in 1:num.nodes
   #   P.ij - square, symmetric matrix containing probabilities; each entry
   #          is the probability of a link between node class i and node class j
-  #   class.names - [optional] vector of strings which are class names,
-  #                 must be same length as nodes.per.class
+  #   class.names - [optional] vector of strings which are class names for each node,
+  #                 must be same length as class.labels
   #
   # Returns:
   #   socio.net - network object containing the simulated network
@@ -85,21 +83,21 @@ generate.network <- function(nodes.per.class, P.ij, class.names = NULL) {
     stop("P.ij is not symmetric")
   }
 
-  # Error checking: check that nodes.per.class and P.ij are consistent
+  # Error checking: check that class.labels and P.ij are consistent
   if (length(P.ij) > 1) {
     # Number of classes
-    num.classes <- length(nodes.per.class)
+    num.classes <- length(unique(class.labels))
     if (num.classes != dim(P.ij)[1]) {
-      stop("nodes.per.class and P.ij have inconsistent dimensions")
+      stop("class.labels and P.ij have inconsistent dimensions")
     }
   }
 
   # ---------- GENERATE NETWORK ---------- #
 
   # Number of nodes in network
-  num.nodes <- sum(nodes.per.class)
+  num.nodes <- length(class.labels)
   # Create matrix containing prob each node is linked to another node
-  prob.mtx <- .create.edge.prob.mtx(nodes.per.class, P.ij)
+  prob.mtx <- create.edge.prob.mtx(class.labels, P.ij)
   # Set lower triangle to zero, so we only generate a link between i and j once
   prob.mtx[lower.tri(prob.mtx)] <- 0
 
@@ -115,15 +113,15 @@ generate.network <- function(nodes.per.class, P.ij, class.names = NULL) {
 
   # Set class name attribute if specified by user
   if (! is.null(class.names)) {
-    if (length(class.names) != length(nodes.per.class)) {
-      stop("Number of class names in class.names inconsistent with nodes.per.class")
+    if (length(class.names) != length(class.labels)) {
+      stop("Number of class names in class.names inconsistent with class.labels")
     }
     # Set attribute
-    socio.net <- set.vertex.attribute(socio.net, "class.name", rep(class.names, times = nodes.per.class))
+    socio.net <- set.vertex.attribute(socio.net, "class.name", class.names)
   }
 
   # Set class label attribute with generic numbering 1, 2, 3, etc
-  socio.net <- set.vertex.attribute(socio.net, "class.label", rep(1:length(nodes.per.class), times = nodes.per.class))
+  socio.net <- set.vertex.attribute(socio.net, "class.label", class.labels)
 
   if (! all(full.socio.mtx == as.sociomatrix(socio.net))) {
     stop("Network initialization inconsistent with input data")
