@@ -643,8 +643,409 @@ initial.mcmc.sample <- function(obs, class.labels, params) {
   return(list(Y = Y, Z0 = Z0, W = W))
 }
 
+############### LIKELIHOOD ###############
+
+llratio.toggle <- function(proposal, prev.sample, toggled, obs, params, class.labels) {
+  # Compute likelihood ratio after a toggle
+  #
+  # Args:
+  #   [proposal is proposed MCMC sample, a list of network variables]
+  #   proposal$Y - network sample (matrix)
+  #   proposal$Z0 - initial infection sample (vector)
+  #   proposal$W - transmissibility matrix sample (matrix)
+  #
+  #   [prev.sample is previous sample in MCMC, a list of network variables]
+  #   prev.sample$Y - network sample (matrix)
+  #   prev.sample$Z0 - initial infection sample (vector)
+  #   prev.sample$W - transmissibility matrix sample (matrix)
+  #
+  #   [toggled is list of information about toggled variable]
+  #   toggled$var - MCMC sample variable that was toggled:"Y", "Z0", or "W"
+  #   toggled$idx - index of Z0 entry toggled [present only if Z0 was toggled]
+  #   toggled$edge - array index of Y or W matrix toggled [present only if Y or W was toggled]
+  #
+  #   [obs is a list of observations]
+  #   obs$Y.obs - observed network, derived from sample
+  #   obs$Z.obs - observed infection, derived from sample
+  #   obs$S - contact tracing sample as vector
+  #   obs$ct.design - contact tracing design used for sample: "infected_only",
+  #                   "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
+  #
+  #   [params is a list of model parameters]
+  #   params$P.ij - square, symmetric matrix containing probabilities; each entry
+  #                  is the probability of a link between node class i and node class j
+  #   params$eta - Bernoulli process parameter for initial infection
+  #   params$tau - Bernoulli process parameter for generating transmission matrix
+  #
+  #   class.labels - class labels (string) for each node, as vector of strings;
+  #                  each label must be in 1:num.nodes
+  #
+  # Returns:
+  #   ratio - likelihood ratio of toggled proposal compared to previous sample
+
+  # Initialize variable for whether reachability should be checked
+  check.reach <- FALSE
+
+  # NOTE: Krista's thesis suggests that when Y or W are toggled, reachability
+  #       should only be checked if a transmission pathway is removed, but not
+  #       if a transmission pathway is added.  However, this suggestion is not
+  #       followed in Krista's code.  I decided to follow the example of
+  #       Krista's code
+
+  # Determine whether reachability needs to be checked
+  if (toggled$var = "Z0") {
+    # Z0 was toggled
+    check.reach <- TRUE
+  } else if (toggled$var = "Y") {
+    # Y was toggled for an edge
+    edge <- prev.sample$W[toggled$edge]
+    # Compute reverse edge (flip row and column index)
+    rev.edge <- prev.sample$W[matrix(rev(toggled$edge), nrow = 1)]
+    # Check if W = 1 in either direction for link in Y
+    if ((edge == 1) | (rev.edge == 1)) {
+      # W = 1 for that corresponding link in either direction
+      check.reach <- TRUE
+    }
+  } else if (toggled$var = "W") {
+    # W was toggled for a directed edge
+    if (prev.sample$Y[toggled$edge] == 1) {
+      # Y = 1 for corresponding edge
+      # NOTE: Don't need to check reverse edge, since Y should be symmetric
+      check.reach <- TRUE
+    }
+  } else {
+    stop("Error: toggle$var set to invalid value")
+  }
+
+  # Set Boolean variable consistent
+  # This variable says whether the proposal is consistent with observation
+
+  #################################################################################
+  # NOTE: VERY IMPORTANT!  We only check that the sample is consistent with Z.obs #
+  #       We assume that consistency of the sample with Y.obs is enforced in the  #
+  #       in the toggle function toggle.Y                                         #
+  #################################################################################
+
+  consistent <- TRUE
+  if (check.reach) {
+    # Compute reachability matrix
+    R.D <- reachability(proposal$W * proposal$Y)
+    # Compute resulting infection
+    Z <- Z0 %*% R.D
+    Z[Z > 1] <- 1
+
+    # Check if infection derived from proposal is consistent with observation
+    if (! all(Z[obs$S == 1] == obs$Z.obs[obs$S == 1])) {
+      consistent <- FALSE
+      print("Z in MCMC sample inconsistent with Z.obs")
+    }
+  }
+
+  # Compute design matrix
+  design.mtx <- compute.design.mtx(obs$Z.obs, obs$S, obs$ct.design)
+
+  if (! all(Y[design.mtx == 1] == obs$Y.obs[design.mtx == 1])) {
+    consistent <- FALSE
+    print("Y in MCMC sample inconsistent with Y.obs")
+  }
+
+  if (consistent) {
+    # If proposal is reachable, then likelihood ratio is nonzero, and we compute it
+
+    # NOTE: We only need to compute the part of the likelihood ratio
+    #       corresponding to the variable that was toggled because only
+    #       one variable is toggled at a time
+
+    # Compute number of nodes
+    num.nodes <- length(obs$S)
+    # Construct a vector of ones for convenience
+    ones <- rep(1, num.nodes)
+
+    # Determine which variable was toggled and compute corresponding ratio
+    if (toggled$var = "Z0") {
+      # Change in number of infected nodes
+      delta.Z0 <- t(proposal$Z0 - prev.sample$Z0) %*% ones
+      # Factor in ratio due to Z0 toggle
+      ratio.Z0 <- (params$eta / (1 - params$eta)) ^ delta.Z0
+
+      ratio <- ratio.Z0
+    } else if (toggled$var = "W") {
+      # Change in number of transmissible links
+      delta.W <- t(ones) %*% (proposal$W - prev.sample$W) %*% ones
+      # Factor in ratio due to W toggle
+      ratio.W <- (params$tau / (1 - params$tau)) ^ delta.W
+
+      ratio <- ratio.W
+    } else if (toggled$var = "Y") {
+      if (length(unique(class.labels)) == 1) {
+        # Case of one class
+        # params$P.ij is a scalar
+
+        # Change in number of sociomatrix links
+        # NOTE: Factor of 1/2 is due to the fact that Y is undirected, thus
+        #       we are double counting links in the matrix product below
+        delta.Y <- 1/2 * (t(ones) %*% (proposal$Y - prev.sample$Y) %*% ones)
+        ratio.Y <- (params$P.ij / (1 - params$P.ij)) ^ delta.Y
+      } else {
+        edge.prob.mtx <- create.edge.prob.mtx(class.labels, params$P.ij)
+
+        # Row and column indices for each entry in a num.nodes x num.nodes matrix
+        # HACK: These indices are generated for using mapply() below
+        row.indices <- rep(1:num.nodes, each = num.nodes)
+        col.indices <- rep(1:num.nodes, times = num.nodes)
+
+        # For each link in the sociomatrix, compute its contribution to the likelihood ratio
+        # Then take product of all of these contributions
+        # NOTE: We only compute contributions for the upper triangle of the sociomatrix
+        #       because the sociomatrix Y is assumed to be undirected.
+        #       If the column index > row index, set the contribution = 1
+        ratio.Y <- prod(mapply(function(i, j) if (j > i) (edge.prob.mtx[i, j] / (1 - edge.prob.mtx[i, j])) ^ (proposal$Y[i, j] - prev.sample$Y[i, j]) else 1, row.indices, col.indices))
+      }
+      ratio <- ratio.Y
+    }
+  } else {
+    # Since proposal is inconsistent with observation, likelihood ratio must be 0
+    ratio <- 0
+  }
+
+  return(ratio)
+}
+
 ############### TOGGLE FUNCTIONS ###############
 
-toggle.binary.int <- function(binary.int) {
-  return(as.integer(! binary.int))
+toggle.binary <- function(binary.int) {
+  # Toggle a binary integer, such that 0 -> 1 and 1 -> 0
+  #
+  # Args:
+  #   binary.int - binary integer that is 0 or 1
+  #
+  # Returns:
+  #   toggled.val - toggled binary integer
+
+  # Flip binary integer 0 -> 1 or 1 -> 0
+  toggled.val <- -1 * binary.int + 1
+
+  return(toggled.val)
+}
+
+toggle.Z0 <- function(prev.sample, obs) {
+  # Toggle an initial infected node, one element of Z0
+  #
+  # Args:
+  #   [prev.sample is previous sample in MCMC, a list of network variables]
+  #   prev.sample$Y - network sample (matrix)
+  #   prev.sample$Z0 - initial infection sample (vector)
+  #   prev.sample$W - transmissibility matrix sample (matrix)
+  #
+  #   [obs is a list of observations]
+  #   obs$Y.obs - observed network, derived from sample
+  #   obs$Z.obs - observed infection, derived from sample
+  #   obs$S - contact tracing sample as vector
+  #   obs$ct.design - contact tracing design used for sample: "infected_only",
+  #                   "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
+  #
+  # Returns:
+  #   [proposal is a list containing proposed sample in Monte Carlo Markov chain]
+  #   proposal$Y - network sample (matrix)
+  #   proposal$Z0 - initial infection sample (vector)
+  #   proposal$W - transmissibility matrix sample (matrix)
+  #
+  #   [toggled is list of information about toggled variable]
+  #   toggled$var - MCMC sample variable that was toggled:"Y", "Z0", or "W"
+  #   toggled$idx - index of Z0 entry toggled
+
+  # Copy previous sample into proposal
+  proposal <- prev.sample
+
+  # Sample one of the nodes to get index
+  # Don't toggle observed uninfected nodes
+  # NOTE: Krista's code doesn't seem to account for observed uninfected nodes
+  idx <- sample(which(! ((obs$Z0 = 0) & (obs$S == 1))), 1)
+
+  # Toggle Z0 value for selected index
+  proposal$Z0[idx] <- toggle.binary(prev.sample$Z0[idx])
+  # Save toggle info
+  toggled <- list(var = "Z0", idx = idx)
+
+  return(list(proposal = proposal, toggled = toggled))
+}
+
+toggle.Y <- function(prev.sample, obs) {
+  # Toggle a link in the sociomatrix Y
+  #
+  # NOTE: The sociomatrix Y is assumed to be undirected, so the toggle
+  #       changes two entries in Y, i.e. if Y[i,j] is changed, so is Y[j, i]
+  #
+  # Args:
+  #   [prev.sample is previous sample in MCMC, a list of network variables]
+  #   prev.sample$Y - network sample (matrix)
+  #   prev.sample$Z0 - initial infection sample (vector)
+  #   prev.sample$W - transmissibility matrix sample (matrix)
+  #
+  #   [obs is a list of observations]
+  #   obs$Y.obs - observed network, derived from sample
+  #   obs$Z.obs - observed infection, derived from sample
+  #   obs$S - contact tracing sample as vector
+  #   obs$ct.design - contact tracing design used for sample: "infected_only",
+  #                   "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
+  #
+  # Returns:
+  #   [proposal is a list containing proposed sample in Monte Carlo Markov chain]
+  #   proposal$Y - network sample (matrix)
+  #   proposal$Z0 - initial infection sample (vector)
+  #   proposal$W - transmissibility matrix sample (matrix)
+  #
+  #   [toggled is list of information about toggled variable]
+  #   toggled$var - MCMC sample variable that was toggled:"Y", "Z0", or "W"
+  #   toggled$idx - array index of Y matrix element toggled
+
+  # Copy previous sample into proposal
+  proposal <- prev.sample
+
+  # Sample one of the links
+
+  # Compute design matrix
+  design.mtx <- compute.design.mtx(obs$Z.obs, obs$S, obs$ct.design)
+  # Adjacency matrix whose non-zero entries corresponding to sociomatrix links which cannot be toggled
+  # Don't sample/toggle observed links (given by design matrix)
+  invalid.mtx <- design.mtx
+  # Don't sample self links
+  diag(invalid.mtx) <- 1
+  # Array indices corresponding to sociomatrix links which can be toggled
+  array.indices <- which(invalid.mtx == 0, arr.ind = TRUE)
+
+  # Number of links that can be sampled (multipled by factor of 2 since Y is undirected)
+  num.links.sample <- dim(array.indices)[1]
+  # Perform sample
+  edge <- array.indices[sample(1:num.links.sample, 1), ]
+
+  # Toggle link in Y for selected index
+
+  # Compute reverse directed edge
+  rev.edge <- matrix(rev(edge), nrow = 1)
+  # Toggle edges in both directions
+  proposal$Y[edge] <- toggle.binary(prev.sample$Y[edge])
+  proposal$Y[rev.edge] <- toggle.binary(prev.sample$Y[rev.edge])
+  # Save toggle info
+  toggled <- list(var = "Y", idx = edge)
+
+  return list(proposal = proposal, toggled = toggled)
+}
+
+toggle.W <- function(prev.sample, obs) {
+  # Toggle a link in the sociomatrix W
+  #
+  # Args:
+  #   [prev.sample is previous sample in MCMC, a list of network variables]
+  #   prev.sample$Y - network sample (matrix)
+  #   prev.sample$Z0 - initial infection sample (vector)
+  #   prev.sample$W - transmissibility matrix sample (matrix)
+  #
+  #   [obs is a list of observations]
+  #   obs$Y.obs - observed network, derived from sample
+  #   obs$Z.obs - observed infection, derived from sample
+  #   obs$S - contact tracing sample as vector
+  #   obs$ct.design - contact tracing design used for sample: "infected_only",
+  #                   "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
+  #
+  # Returns:
+  #   [sample is a list containing next sample in Monte Carlo Markov chain]
+  #   sample$Y - network sample (matrix)
+  #   sample$Z0 - initial infection sample (vector)
+  #   sample$W - transmissibility matrix sample (matrix)
+  #
+  #   accept - Boolean variable indicating whether proposal was accepted
+  #
+  #   [toggled is list of information about toggled variable]
+  #   toggled$var - MCMC sample variable that was toggled:"Y", "Z0", or "W"
+  #   toggled$idx - array index of W matrix element toggled
+
+  # Compute number of nodes in network
+  num.nodes <- length(obs$S)
+
+  # Copy previous sample into proposal
+  proposal <- prev.sample
+
+  # Sample one of the links
+
+  # Adjacency matrix whose non-zero entries corresponding to sociomatrix links which cannot be toggled
+  invalid.mtx <- matrix(0, nrow = num.nodes, ncol = num.nodes)
+  # Don't sample self links
+  diag(invalid.mtx) <- 1
+  # Array indices corresponding to sociomatrix links which can be toggled
+  array.indices <- which(invalid.mtx == 0, arr.ind = TRUE)
+
+  # Number of links that can be sampled (multipled by factor of 2 since Y is undirected)
+  num.links.sample <- dim(array.indices)[1]
+  # Perform sample
+  edge <- array.indices[sample(1:num.links.sample, 1), ]
+
+  # Toggle link in W for selected index
+  proposal$W[edge] <- toggle.binary(prev.sample$Y[edge])
+  # Save toggle info
+  toggled <- list(var = "W", edge = edge, idx = NULL)
+
+  return list(proposal = proposal, toggled = toggled)
+}
+
+############### MCMC FUNCTIONS ###############
+
+compute.next.sample <- function(toggle.var, prev.sample, obs, params, class.labels) {
+  # Compute next sample in Monte Carlo Markov Chain
+  #
+  # Args:
+  #   toggle.var - variable to toggle, either "Y", "Z0", or "W"
+  #
+  #   [prev.sample is previous sample in MCMC, a list of network variables]
+  #   prev.sample$Y - network sample (matrix)
+  #   prev.sample$Z0 - initial infection sample (vector)
+  #   prev.sample$W - transmissibility matrix sample (matrix)
+  #
+  #   [obs is a list of observations]
+  #   obs$Y.obs - observed network, derived from sample
+  #   obs$Z.obs - observed infection, derived from sample
+  #   obs$S - contact tracing sample as vector
+  #   obs$ct.design - contact tracing design used for sample: "infected_only",
+  #                   "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
+  #
+  #   [params is a list of model parameters]
+  #   params$P.ij - square, symmetric matrix containing probabilities; each entry
+  #                  is the probability of a link between node class i and node class j
+  #   params$eta - Bernoulli process parameter for initial infection
+  #   params$tau - Bernoulli process parameter for generating transmission matrix
+  #
+  #   class.labels - class labels (string) for each node, as vector of strings;
+  #                  each label must be in 1:num.nodes
+  #
+  # Returns:
+  #   [sample is a list containing next sample in Monte Carlo Markov chain]
+  #   sample$Y - network sample (matrix)
+  #   sample$Z0 - initial infection sample (vector)
+  #   sample$W - transmissibility matrix sample (matrix)
+  #
+  #   accept - Boolean variable indicating whether proposal was accepted
+  #
+  #   [toggled is list of information about toggled variable]
+  #   toggled$var - MCMC sample variable that was toggled:"Y", "Z0", or "W"
+  #   toggled$idx - index of entry toggled (scalar for Z0, array index for Y and W)
+
+  if (toggle.var == "Y") {
+    result <- toggle.Y(prev.sample, obs)
+  } else if (toggle.var == "Z0") {
+    result <- toggle.Z0(prev.sample, obs)
+  } else if (toggle.var == "W") {
+    result <- toggle.Z0(prev.sample, obs)
+  } else {
+    stop("Error: Invalid value specified for toggle.var")
+  }
+
+  accept <- (llratio.toggle(result$proposal, prev.sample, result$toggled, obs, params, class.labels) > runif(1))
+
+  if (accept) {
+    next.sample <- result$proposal
+  } else {
+    next.sample <- prev.sample
+  }
+
+  return list(sample = next.sample, accept = accept, toggled = result$toggled)
 }
