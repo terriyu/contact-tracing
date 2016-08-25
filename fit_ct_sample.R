@@ -150,27 +150,28 @@ compute.dst.df <- function(root, subgraph) {
   return(directed.edges.list)
 }
 
-estimate.initial.params <- function(obs, ct.design, class.labels) {
+estimate.initial.params <- function(obs, class.labels) {
   # Estimate initial model parameters P.ij, eta, and tau for MLE
   #
   # NOTE: We don't estimate sigma, because we use missing-at-random assumption,
   #       and therefore sampling parameters can be ignored
   #
   # Args:
-  #   [obs is a list of the observed network, infection, and sample]
+  #   [obs is a list of the observations]
   #   obs$Y.obs - observed network, derived from sample
   #   obs$Z.obs - observed infection, derived from sample
   #   obs$S - contact tracing sample as vector
+  #   obs$ct.design - contact tracing design used for sample: "infected_only",
+  #                   "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
   #
-  #   ct.design - contact tracing design used for sample: "infected_only",
-  #               "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
-  #   class.labels - class label (string) for each node, as vector of strings
+  #   class.labels - class label (string) for each node, as vector of strings;
+  #                  each label must be in 1:num.nodes
   #
   # Returns:
-  #   P.ij0 - square, symmetric matrix containing probabilities; each entry
+  #   P.ij - square, symmetric matrix containing probabilities; each entry
   #          is the probability of a link between node class i and node class j
-  #   eta0 - Bernoulli process parameter for initial infection
-  #   tau0 - Bernoulli process parameter for generating transmission matrix
+  #   eta - Bernoulli process parameter for initial infection
+  #   tau - Bernoulli process parameter for generating transmission matrix
 
   # ---------- ERROR CHECKING ---------- #
 
@@ -205,19 +206,22 @@ estimate.initial.params <- function(obs, ct.design, class.labels) {
   num.classes <- length(unique(class.labels))
 
   # Compute design matrix
-  design.mtx <- compute.design.mtx(obs$Z.obs, obs$S, ct.design)
+  design.mtx <- compute.design.mtx(obs$Z.obs, obs$S, obs$ct.design)
 
   # ---------- INITIAL ESTIMATE FOR P.ij ---------- #
 
+  # NOTE: Factor of 1/2 in num.links.obs and num.links is due to the fact
+  #       that Y is undirected
+
   # Simple calculation if only one class
   if (num.classes == 1) {
-    # Vector of ones
+    # Construct a vector of ones for convenience
     ones <- rep(1, num.nodes)
 
     # Number of observed links
-    num.links.obs <- t(ones) %*% obs$Y.obs %*% ones
+    num.links.obs <- 1 / 2 * (t(ones) %*% obs$Y.obs %*% ones)
     # Number of possible links
-    num.links <- t(ones) %*% design.mtx %*% ones
+    num.links <- 1 / 2 * (t(ones) %*% design.mtx %*% ones)
     # Set initial parameter estimate to proportion of observed links
     P.ij0 <- num.links.obs / num.links
   } else {
@@ -242,9 +246,9 @@ estimate.initial.params <- function(obs, ct.design, class.labels) {
           design.mtx.ii <- design.mtx[class.labels == unique.labels[i]]
 
           # Number of observed links
-          num.links.obs <- t(ones.ii) %*% Y.obs.ii %*% ones.ii
+          num.links.obs <- 1 / 2 * (t(ones.ii) %*% Y.obs.ii %*% ones.ii)
           # Number of possible links
-          num.links <- t(ones.ii) %*% design.mtx.ii %*% ones.ii
+          num.links <- 1 /2 * (t(ones.ii) %*% design.mtx.ii %*% ones.ii)
 
           # Set initial parameter estimate to proportion of observed links
           P.ij0[i, i] <- num.links.obs / num.links
@@ -280,8 +284,10 @@ estimate.initial.params <- function(obs, ct.design, class.labels) {
 
           # Number of observed links
           num.links.obs <- (t(ones.ij) %*% Y.obs.ij %*% ones.ij) - (t(ones.ii) %*% Y.obs.ii %*% ones.ii) - (t(ones.jj) %*% Y.obs.jj %*% ones.jj)
+          num.links.obs <- 1 / 2 * num.links.obs
           # Number of possible links
           num.links <- (t(ones.ij) %*% design.mtx.ij %*% ones.ij) - (t(ones.ii) %*% design.mtx.ii %*% ones.ii) - (t(ones.jj) %*% design.mtx.jj %*% ones.jj)
+          num.links <- 1 / 2 * num.links
           # Set initial parameter estimate to proportion of observed links
           P.ij0[i, j] <- num.links.obs / num.links
           P.ij0[j, i] <- P.ij0[i, j]
@@ -345,26 +351,30 @@ estimate.initial.params <- function(obs, ct.design, class.labels) {
   }
 
   # Return estimate of initial model parameters
-  return(list(P.ij0 = P.ij0, eta0 = eta0, tau0 = tau0))
+  return(list(P.ij = P.ij0, eta = eta0, tau = tau0))
 }
 
 initial.mcmc.sample <- function(obs, class.labels, params) {
   # Draw initial MCMC sample based on initial model parameters
-  # NOTE: params are in members of a list, e.g params = list(P.ij0 = P.ij0, eta0 = eta0, tau0 = tau0)
+  #
+  # NOTE: params are in members of a list, e.g params = list(P.ij = P.ij, eta = eta, tau = tau)
   #
   # Args:
-  #   [obs is a list of observed network, infection, and sample
+  #   [obs is a list of observations]
   #   obs$Y.obs - observed network, derived from sample
   #   obs$Z.obs - observed infection, derived from sample
   #   obs$S - contact tracing sample as vector
+  #   obs$ct.design - contact tracing design used for sample: "infected_only",
+  #                   "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
   #
-  #   class.labels - class labels (string) for each node, as vector of strings
+  #   class.labels - class labels (string) for each node, as vector of strings;
+  #                  each label must be in 1:num.nodes
   #
   #   [params is a list of model parameters]
-  #   params$P.ij0 - square, symmetric matrix containing probabilities; each entry
+  #   params$P.ij - square, symmetric matrix containing probabilities; each entry
   #                  is the probability of a link between node class i and node class j
-  #   params$eta0 - Bernoulli process parameter for initial infection
-  #   params$tau0 - Bernoulli process parameter for generating transmission matrix
+  #   params$eta - Bernoulli process parameter for initial infection
+  #   params$tau - Bernoulli process parameter for generating transmission matrix
   #
   # Returns:
   #   Y - network sample (matrix)
@@ -399,38 +409,38 @@ initial.mcmc.sample <- function(obs, class.labels, params) {
     stop("obs$Y.obs must have zero diagonal")
   }
 
-  if (! is.null(params$eta0)) {
-    if ((params$eta0 < 0) | (params$eta0 > 1)) {
+  if (! is.null(params$eta)) {
+    if ((params$eta < 0) | (params$eta > 1)) {
       stop("Bernoulli process parameter eta must be between 0 and 1")
     }
   }
 
-  if (! is.null(params$tau0)) {
-    if ((params$tau0 < 0) | (params$tau0 > 1)) {
+  if (! is.null(params$tau)) {
+    if ((params$tau < 0) | (params$tau > 1)) {
       stop("Bernoulli process parameter tau must be between 0 and 1")
     }
   }
 
-  # Error checking: check that params$P.ij0 is square matrix
-  if (length(params$P.ij0) > 1) {
-    if (dim(params$P.ij0)[1] != dim(params$P.ij0)[2]) {
-      stop("params$P.ij0 not a square matrix")
+  # Error checking: check that params$P.ij is square matrix
+  if (length(params$P.ij) > 1) {
+    if (dim(params$P.ij)[1] != dim(params$P.ij)[2]) {
+      stop("params$P.ij not a square matrix")
     }
   }
 
-  # Error checking: check that params$P.ij0 is symmetric matrix
+  # Error checking: check that params$P.ij is symmetric matrix
   # Probability of link between class i and class j should be same as
   # probability of link between class j and class i
-  if (! all(params$P.ij0 == t(params$P.ij0))) {
-    stop("params$P.ij0 is not symmetric")
+  if (! all(params$P.ij == t(params$P.ij))) {
+    stop("params$P.ij is not symmetric")
   }
 
-  # Error checking: check that class.labels and params$P.ij0 are consistent
-  if (length(params$P.ij0) > 1) {
+  # Error checking: check that class.labels and params$P.ij are consistent
+  if (length(params$P.ij) > 1) {
     # Number of classes
     num.classes <- length(unique(class.labels))
-    if (num.classes != dim(params$P.ij0)[1]) {
-      stop("class.labels and params$P.ij0 are inconsistent")
+    if (num.classes != dim(params$P.ij)[1]) {
+      stop("class.labels and params$P.ij are inconsistent")
     }
   }
 
@@ -441,7 +451,7 @@ initial.mcmc.sample <- function(obs, class.labels, params) {
   num.classes <- length(unique(class.labels))
 
   # Compute design matrix
-  design.mtx <- compute.design.mtx(obs$Z.obs, obs$S, ct.design)
+  design.mtx <- compute.design.mtx(obs$Z.obs, obs$S, obs$ct.design)
 
   # Boolean matrix of unobserved links in upper triangle
   unobserved.links <- (design.mtx == 0) & upper.tri(design.mtx)
@@ -453,12 +463,12 @@ initial.mcmc.sample <- function(obs, class.labels, params) {
   Y[lower.tri(Y)] <- 0
 
   if (num.classes == 1) {
-    # Only one class, so params$P.ij0 is a scalar
-    Y[unobserved.indices] <- rbinom(sum(unobserved.links), 1, params$P.ij0)
+    # Only one class, so params$P.ij is a scalar
+    Y[unobserved.indices] <- rbinom(sum(unobserved.links), 1, params$P.ij)
   } else {
     # Case of multiple classes
     for (i in 1:num.unobserved.links) {
-      bernoulli.prob <- params$P.ij0(unobserved.indices[i, 1], unobserved.indices[i, 2])
+      bernoulli.prob <- params$P.ij(unobserved.indices[i, 1], unobserved.indices[i, 2])
       Y[unobserved.indices[i, ]] <- rbinom(1, 1, bernoulli.prob)
     }
   }
@@ -529,6 +539,7 @@ initial.mcmc.sample <- function(obs, class.labels, params) {
         Z0.root <- which(subgraph.infected.indices == infected.idx)
 
         # Compute directed spanning tree for infected subgraph
+
         # NOTE: Prefer breadth-first versus depth-first spanning tree
         #       Makes more sense for practical situations like needle/drug sharing party?
         directed.edges.list <- compute.dst.bf(root, Y.obs.infected[subgraph.infected.nodes, subgraph.infected.nodes])
@@ -544,21 +555,22 @@ initial.mcmc.sample <- function(obs, class.labels, params) {
   }
 
   # NOTE: PhD thesis and Krista's code are different
+
   # Set values for all other nodes in Z0
 
   # Any other observed nodes (not already set) are set to 0
   Z0[is.na(Z0) & (obs$S == 1)] <- 0
   # Unobserved nodes randomly infected with Bernoulli process
-  Z0[is.na(Z0) & (obs$S == 0)] <- rbinom(sum(is.na(Z0) & (obs$S == 0)), 1, params$eta0)
+  Z0[is.na(Z0) & (obs$S == 0)] <- rbinom(sum(is.na(Z0) & (obs$S == 0)), 1, params$eta)
 
   ##########################################################################
   # QUESTION: alternative to the above, is this better???
   # Randomly set Z0 for observed infected nodes
-  #Z0[is.na(Z0) & (obs$Z.obs == 1)] <- rbinom(sum(is.na(Z0) & (obs$Z.obs == 1)), 1, params$eta0)
+  #Z0[is.na(Z0) & (obs$Z.obs == 1)] <- rbinom(sum(is.na(Z0) & (obs$Z.obs == 1)), 1, params$eta)
   # Set Z0 = 0 for observed uninfected nodes
   #Z0[is.na(Z0) & (obs$Z.obs == 0) & (obs$S == 1)] <- 0
   # Unobserved nodes randomly infected with Bernoulli process
-  #Z0[is.na(Z0) & (obs$S == 0)] <- rbinom(sum(is.na(Z0) & (obs$S == 0)), 1, params$eta0)
+  #Z0[is.na(Z0) & (obs$S == 0)] <- rbinom(sum(is.na(Z0) & (obs$S == 0)), 1, params$eta)
   ##########################################################################
 
   # NOTE: Krista's code performs the W sample in a different way
@@ -588,7 +600,7 @@ initial.mcmc.sample <- function(obs, class.labels, params) {
   # QUESTION: Should links from unsampled nodes to observed uninfected nodes
   #           have W = 0?
   # Any unset entries in W are assigned by Bernoulli process
-  W[is.na(W)] <- rbinom(sum(is.na(W)), 1, params$tau0)
+  W[is.na(W)] <- rbinom(sum(is.na(W)), 1, params$tau)
 
   # Error checking for Z0
 
@@ -620,7 +632,7 @@ initial.mcmc.sample <- function(obs, class.labels, params) {
   R.D <- reachability(W * Y)
   # Compute resulting infection
   Z <- Z0 %*% R.D
-  Z[Z > 0] <- 1
+  Z[Z > 1] <- 1
 
   # FIXME: Should get rid of this error message
   if (! all(Z[obs$S == 1] == obs$Z.obs[obs$S == 1])) {
