@@ -38,9 +38,10 @@ create.edge.prob.mtx <- function(class.labels, P.ij) {
   # Case where there is more than one node class
   } else {
     # Row and column indices for each entry in a num.nodes x num.nodes matrix
-    # Hack for using mapply
+    # HACK: These indices are generated for using mapply() below
     row.indices <- rep(1:num.nodes, each = num.nodes)
     col.indices <- rep(1:num.nodes, times = num.nodes)
+
     # For each pair of nodes i and j, compute probability of link between them
     # The probability is determined by the classes of node i and j
     # We use mapply to vectorize this calculation and avoid for loops
