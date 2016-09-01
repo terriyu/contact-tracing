@@ -18,9 +18,10 @@ Features
 Dependencies
 ------------
 
-The `network` package is needed to run this code. It is part of a larger
-package called `statnet`.  If you want to run the tests, the `testthat` package
-must be installed.
+The `network` and `sna` packages are needed to run this code. Both packages are
+part of a larger package called `statnet`.  If you want to run the tests, the
+`testthat` package must be installed.  The package versions tested are listed
+below.
 
 How to run the tests
 --------------------
@@ -53,6 +54,16 @@ Code style check
 ----------------
 If you are using the R package `lintr` to check code style, there is already a
 lintr config file `.lintr` which avoids running a couple linters.
+
+Software versions
+-----------------
+R (version 3.3.1, created 2016-06-21)
+
+*R packages*
++ `network` (version 1.13.0, created 2015-08-31)
++ `sna` (version 2.3-2, created 2014-01-13)
++ `testthat` (version 1.0.2)
++ `lintr` (version 1.0.0)
 
 References
 ----------
