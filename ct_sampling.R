@@ -74,12 +74,18 @@ ct.sample <- function(disease.net, sigma, ct.design, options = list()) {
   #
   #   [optional arguments]
   #   options$size.S0 - fix size of initial sample to avoid returning empty sample
+  #                     default value = NULL
   #   options$num.waves - number of waves to use in sampling
   #                       (NULL if you keep sampling until no new nodes are sampled)
-  #   options$p.trace.infected - [optional] Bernoulli parameter for tracing infected contact
-  #   options$p.trace.uninfected - [optional] Bernoulli parameter for tracing uninfected contact
-  #   options$verbose - [optional] flag to print variables during sampling process (for debugging)
-  #   options$S0.fixed - [optional] nodes in initial sample (only use for debugging/testing)
+  #                       default value = NULL
+  #   options$p.trace.infected - Bernoulli parameter for tracing infected contact
+  #                              default value = NULL
+  #   options$p.trace.uninfected - Bernoulli parameter for tracing uninfected contact
+  #                                default value = NULL
+  #   options$verbose - flag to print variables during sampling process (for debugging)
+  #                     default value = FALSE
+  #   options$S0.fixed - nodes in initial sample (only use for debugging/testing)
+  #                      default value = NULL
   #
   #     Set optional arguments as members of list, e.g. "options = list(size.S0 = 5)"
   #
@@ -88,7 +94,7 @@ ct.sample <- function(disease.net, sigma, ct.design, options = list()) {
   #   S - full contact tracing sample as vector
 
   # Set defaults for options
-  opts = list(size.S0 = NULL, num.waves = NULL, p.trace.infected = NULL, p.trace.uninfected = NULL, verbose = FALSE, S0.fixed = NULL)
+  opts <- list(size.S0 = NULL, num.waves = NULL, p.trace.infected = NULL, p.trace.uninfected = NULL, verbose = FALSE, S0.fixed = NULL)
   # Fill in user-specified options
   opts[names(options)] <- options
 
