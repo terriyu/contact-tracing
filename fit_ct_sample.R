@@ -6,9 +6,14 @@
 # !                                                                             !
 # ! NOTE: We assume that links can be observed perfectly (no degradation), i.e. !
 # !       p.trace.infected = 1, p.trace.uninfected = 1                          !
+# !                                                                             !
+# ! NOTE: For observed variables Y.obs and Z.obs, we set an unobserved entry    !
+# !       to 0, even if it has not been observed.                               !
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-# Need for components functions, components() and component.dist()
+# FIXME: Change Y.obs and Z.obs to use NA for unobserved entries
+
+# Need sna package for components functions, components() and component.dist()
 # NOTE: Potential conflict with network package for operator %c%
 suppressMessages(library(sna))
 
@@ -153,7 +158,7 @@ compute.dst.df <- function(root, subgraph) {
 estimate.initial.params <- function(obs, class.labels) {
   # Estimate initial model parameters P.ij, eta, and tau for MLE
   #
-  # NOTE: We don't estimate sigma, because we use missing-at-random assumption,
+  # NOTE: We don't estimate sigma, because we make the missing-at-random assumption,
   #       and therefore sampling parameters can be ignored
   #
   # Args:
@@ -202,6 +207,7 @@ estimate.initial.params <- function(obs, class.labels) {
 
   # ----------- CALCULATE USEFUL VARIABLES ---------- #
 
+  # Compute number of nodes and classes
   num.nodes <- length(class.labels)
   num.classes <- length(unique(class.labels))
 
@@ -213,81 +219,81 @@ estimate.initial.params <- function(obs, class.labels) {
   # NOTE: Factor of 1/2 in num.links.obs and num.links is due to the fact
   #       that Y is undirected
 
-  # Simple calculation if only one class
   if (num.classes == 1) {
+    # Simple calculation if only one class
+
     # Construct a vector of ones for convenience
     ones <- rep(1, num.nodes)
 
     # Number of observed links
-    num.links.obs <- 1 / 2 * (t(ones) %*% obs$Y.obs %*% ones)
+    num.links.obs <- 1/2 * (t(ones) %*% obs$Y.obs %*% ones)
     # Number of possible links
-    num.links <- 1 / 2 * (t(ones) %*% design.mtx %*% ones)
+    num.links <- 1/2 * (t(ones) %*% design.mtx %*% ones)
     # Set initial parameter estimate to proportion of observed links
     P.ij0 <- num.links.obs / num.links
   } else {
-    # Compute unique labels and number of labels
-    unique.labels <- sort(unique(class.labels))
-    num.labels <- length(unique.labels)
+    # Case of multiple classes
+
     # Initialize P.ij matrix
-    P.ij0 <- matrix(NA, nrow = num.labels, ncol = num.labels)
+    P.ij0 <- matrix(NA, nrow = num.classes, ncol = num.classes)
 
     # Compute estimates for entries of P.ij matrix
     for (i in 1:num.labels) {
       for (j in i:num.labels) {
         if (i == j) {
           # Number of nodes with class i
-          dim.ii <- sum(class.labels == unique.labels[i])
+          dim.ii <- sum(class.labels == i)
           # Vector of ones
-          ones.ii<- rep(1, dim.ii)
+          ones.ii <- rep(1, dim.ii)
 
           # Extract sub-matrix of observed network corresponding to class i
-          Y.obs.ii<- obs$Y.obs[class.labels == unique.labels[i]]
+          Y.obs.ii <- obs$Y.obs[class.labels == i, class.labels == i]
           # Extract sub-matrix of design matrix corresponding to class i
-          design.mtx.ii <- design.mtx[class.labels == unique.labels[i]]
+          design.mtx.ii <- design.mtx[class.labels == i, class.labels == i]
 
           # Number of observed links
-          num.links.obs <- 1 / 2 * (t(ones.ii) %*% Y.obs.ii %*% ones.ii)
+          num.links.obs <- 1/2 * (t(ones.ii) %*% Y.obs.ii %*% ones.ii)
           # Number of possible links
-          num.links <- 1 /2 * (t(ones.ii) %*% design.mtx.ii %*% ones.ii)
+          num.links <- 1/2 * (t(ones.ii) %*% design.mtx.ii %*% ones.ii)
 
           # Set initial parameter estimate to proportion of observed links
           P.ij0[i, i] <- num.links.obs / num.links
         } else {
           # Number of nodes with class i
-          dim.ii <- sum(class.labels == unique.labels[i])
+          dim.ii <- sum(class.labels == i)
           # Vector of ones
           ones.ii <- rep(1, dim.ii)
 
           # Number of nodes with class j
-          dim.jj <- sum(class.labels == unique.labels[j])
+          dim.jj <- sum(class.labels == j)
           # Vector of ones
           ones.jj <- rep(1, dim.jj)
 
           # Number of nodes with class i or j
-          dim.ij <- sum(class.labels == unique.labels[i]) + sum(class.labels == unique.labels[j])
+          dim.ij <- sum(class.labels == i) + sum(class.labels == j)
           # Vector of ones
           ones.ij <- rep(1, dim.ij)
 
           # Extract sub-matrix of observed network corresponding to class i
-          Y.obs.ii <-  obs$Y.obs[class.labels == unique.labels[i]]
+          Y.obs.ii <-  obs$Y.obs[class.labels == i, class.labels == i]
           # Extract sub-matrix of observed network corresponding to class j
-          Y.obs.jj <-  obs$Y.obs[class.labels == unique.labels[j]]
+          Y.obs.jj <-  obs$Y.obs[class.labels == j, class.labels == j]
           # Extract sub-matrix of observed network corresponding to classes i and j
-          Y.obs.ij <- obs$Y.obs[class.labels == unique.labels[i] | class.labels == unique.labels[j]]
+          Y.obs.ij <- obs$Y.obs[class.labels == i | class.labels == j, class.labels == i | class.labels == j]
 
           # Extract sub-matrix of design matrix corresponding to class i
-          design.mtx.ii <- design.mtx[class.labels == unique.labels[i]]
+          design.mtx.ii <- design.mtx[class.labels == i, class.labels == i]
           # Extract sub-matrix of design matrix corresponding to class j
-          design.mtx.jj <- design.mtx[class.labels == unique.labels[j]]
+          design.mtx.jj <- design.mtx[class.labels == j, class.labels == j]
           # Extract sub-matrix of design matrix corresponding to classes i and j
-          design.mtx.ij <- design.mtx[class.labels == unique.labels[i] | class.labels == unique.labels[j]]
+          design.mtx.ij <- design.mtx[class.labels == i | class.labels == j, class.labels == i | class.labels == j]
 
           # Number of observed links
           num.links.obs <- (t(ones.ij) %*% Y.obs.ij %*% ones.ij) - (t(ones.ii) %*% Y.obs.ii %*% ones.ii) - (t(ones.jj) %*% Y.obs.jj %*% ones.jj)
-          num.links.obs <- 1 / 2 * num.links.obs
+          num.links.obs <- 1/2 * num.links.obs
           # Number of possible links
           num.links <- (t(ones.ij) %*% design.mtx.ij %*% ones.ij) - (t(ones.ii) %*% design.mtx.ii %*% ones.ii) - (t(ones.jj) %*% design.mtx.jj %*% ones.jj)
-          num.links <- 1 / 2 * num.links
+          num.links <- 1/2 * num.links
           # Set initial parameter estimate to proportion of observed links
           P.ij0[i, j] <- num.links.obs / num.links
           P.ij0[j, i] <- P.ij0[i, j]
@@ -306,7 +312,7 @@ estimate.initial.params <- function(obs, class.labels) {
     stop("Error calculating initial parameters: P.ij0 matrix is not symmetric")
   }
 
-  if (! all((P.ij0 >= 0) | (P.ij <= 1))) {
+  if (! all((P.ij0 >= 0) | (P.ij0 <= 1))) {
     stop("Error calculating initial parameters: All entries of P.ij0 matrix must be between 0 and 1")
   }
   # ---------- INITIAL ESTIMATE FOR ETA ---------- #
@@ -329,7 +335,11 @@ estimate.initial.params <- function(obs, class.labels) {
   Q <- Q + sum(cd.csize[cd.membership[obs$Z.obs == 1]] == 1)
 
   # Initial estimate for eta
-  eta0 <- Q / (t(S) %*% ones)
+  num.samples <- t(S) %*% ones
+  if (num.samples < 1) {
+    stop("Error: Sample size of zero")
+  }
+  eta0 <- Q / num.samples
 
   # Error checking for eta
   if ((eta0 < 0) | (eta0 > 1)) {
@@ -343,7 +353,12 @@ estimate.initial.params <- function(obs, class.labels) {
   A <- t(obs$Z.obs) %*% ones - Q
   # Number of possible transmission events
   B <- t(obs$Z.obs) %*% obs$Y.obs %*% ones
+
+
   tau0 <- A / B
+  if (B == 0) {
+    stop("Error: zero possible transmission events, divide by zero")
+  }
 
   # Error checking for tau
   if ((tau0 < 0) | (tau0 > 1)) {
@@ -354,7 +369,7 @@ estimate.initial.params <- function(obs, class.labels) {
   return(list(P.ij = P.ij0, eta = eta0, tau = tau0))
 }
 
-initial.mcmc.sample <- function(obs, class.labels, params) {
+draw.initial.sample <- function(obs, class.labels, params) {
   # Draw initial MCMC sample based on initial model parameters
   #
   # NOTE: params are in members of a list, e.g params = list(P.ij = P.ij, eta = eta, tau = tau)
@@ -542,7 +557,7 @@ initial.mcmc.sample <- function(obs, class.labels, params) {
 
         # NOTE: Prefer breadth-first versus depth-first spanning tree
         #       Makes more sense for practical situations like needle/drug sharing party?
-        directed.edges.list <- compute.dst.bf(root, Y.obs.infected[subgraph.infected.nodes, subgraph.infected.nodes])
+        directed.edges.list <- compute.dst.bf(Z0.root, Y.obs.infected[subgraph.infected.nodes, subgraph.infected.nodes])
 
         # Convert list to array indices
         flattened.indices <- sapply(unlist(directed.edges.list), function(idx) subgraph.infected.indices[idx])
@@ -590,10 +605,11 @@ initial.mcmc.sample <- function(obs, class.labels, params) {
   # Links from observed infected nodes to other observed infected nodes could potentially be set
   # QUESTION: Might delete line below, if we follow Krista's code?
   Y.obs.untransmitted[obs$Z.obs == 1, obs$Z.obs == 1] <- 1
-  # Eliminate any links that are unobserved or which have already been set in W
+  # Eliminate any links that are unobserved (whether or not they actually exist)
+  # or which have already been set in W
   # HACK: R automatically casts (W == NA) from Boolean to integer matrix
   Y.obs.untransmitted <- Y.obs.untransmitted * obs$Y.obs * (W == NA)
-
+#FIXME???
   # Set W = 0 according to Y.obs.untransmitted
   W[Y.obs.untransmitted == 1] <- 0
 
@@ -631,19 +647,98 @@ initial.mcmc.sample <- function(obs, class.labels, params) {
   # Compute reachability matrix
   R.D <- reachability(W * Y)
   # Compute resulting infection
-  Z <- Z0 %*% R.D
+  Z <- as.vector(Z0 %*% R.D)
   Z[Z > 1] <- 1
 
-  # FIXME: Should get rid of this error message
+  success <- TRUE
   if (! all(Z[obs$S == 1] == obs$Z.obs[obs$S == 1])) {
-    stop("Error calculating initial MCMC sample: Sample inconsistent with obs$Z.obs")
+    success <- FALSE
   }
 
-  # Return sample for Y, Z0, and W
-  return(list(Y = Y, Z0 = Z0, W = W))
+  # Set sample for Y, Z0, and W if success
+  if (success) {
+    sample <- list(Y = Y, Z0 = Z0, W = W)
+  } else {
+    sample <- NA
+  }
+
+  return(list(success = success, sample = sample))
 }
 
 ############### LIKELIHOOD ###############
+
+log.likelihood <- function(sample, params, class.labels) {
+  # Compute log-likelihood of a sample
+  #
+  # NOTE: Does not check if sample is consistent with observations
+  #
+  # Args:
+  #   [sample is a MCMC sample, a list of network variables]
+  #   sample$Y - network sample (matrix)
+  #   sample$Z0 - initial infection sample (vector)
+  #   sample$W - transmissibility matrix sample (matrix)
+  #
+  #   [params is a list of model parameters]
+  #   params$P.ij - square, symmetric matrix containing probabilities; each entry
+  #                  is the probability of a link between node class i and node class j
+  #   params$eta - Bernoulli process parameter for initial infection
+  #   params$tau - Bernoulli process parameter for generating transmission matrix
+  #
+  #   class.labels - class labels (string) for each node, as vector of strings;
+  #                  each label must be in 1:num.nodes
+  #
+  # Returns:
+  #   loglik - log-likelihood of sample
+
+  ################################################################
+  # NOTE: Assumes that sample is consistent with observations!!! #
+  ################################################################
+
+  # Compute number of nodes
+  num.nodes <- length(sample$Z0)
+  # Construct a vector of ones for convenience
+  ones <- rep(1, num.nodes)
+
+  # Part of log-likelihood due to Z0
+  loglik.Z0 <- (t(sample$Z0) %*% ones) * log(params$eta / (1 - params$eta)) + num.nodes * log(1 - params$eta)
+
+  # Part of log-likelihood due to W
+  loglik.W <- (t(ones) %*% sample$W %*% ones) * log(params$tau / (1 - params$tau)) + num.nodes * log(1 - params$tau)
+
+  if (length(unique(class.labels)) == 1) {
+    # Case of one class
+    # params$P.ij is a scalar
+
+    # NOTE: Factor of 1/2 is due to the fact that Y is undirected, thus
+    #       we are double counting links in the matrix product below
+
+    # Part of log-likelihood due to Y
+    loglik.Y <- 1/2 * (t(ones) %*% sample$Y %*% ones) * log(params$P.ij / (1 - params$P.ij)) + num.nodes * log(1 - params$P.ij)
+  } else {
+    # Case of multiple classes
+    edge.prob.mtx <- create.edge.prob.mtx(class.labels, params$P.ij)
+
+    # Row and column indices for each entry in a num.nodes x num.nodes matrix
+    # HACK: These indices are generated for using mapply() below
+    row.indices <- rep(1:num.nodes, each = num.nodes)
+    col.indices <- rep(1:num.nodes, times = num.nodes)
+
+    # For each link in the sociomatrix, compute its contribution to the log-likelihood
+    # Then take product of all of these contributions
+    # NOTE: We only compute contributions for the upper triangle of the sociomatrix
+    #       because the sociomatrix Y is assumed to be undirected.
+    #       If the column index > row index, set the contribution = 1
+
+    # Part of log-likelihood due to Y
+    loglik.Y <- prod(mapply(function(i, j) if (j > i) (sample$Y[i, j] * log(edge.prob.mtx[i, j] / (1 - edge.prob.mtx[i, j])) + log(1 - edge.prob.mtx[i, j])) else 1, row.indices, col.indices))
+  }
+
+  # Add up contributions from all variables
+  loglik <- loglik.Z0 + loglik.W + loglik.Y
+
+  return(loglik)
+}
+
 
 llratio.toggle <- function(proposal, prev.sample, toggled, obs, params, class.labels) {
   # Compute likelihood ratio after a toggle
@@ -661,8 +756,7 @@ llratio.toggle <- function(proposal, prev.sample, toggled, obs, params, class.la
   #
   #   [toggled is list of information about toggled variable]
   #   toggled$var - MCMC sample variable that was toggled:"Y", "Z0", or "W"
-  #   toggled$idx - index of Z0 entry toggled [present only if Z0 was toggled]
-  #   toggled$edge - array index of Y or W matrix toggled [present only if Y or W was toggled]
+  #   toggled$idx - index of entry toggled (scalar for Z0, array index for Y and W)
   #
   #   [obs is a list of observations]
   #   obs$Y.obs - observed network, derived from sample
@@ -693,22 +787,22 @@ llratio.toggle <- function(proposal, prev.sample, toggled, obs, params, class.la
   #       Krista's code
 
   # Determine whether reachability needs to be checked
-  if (toggled$var = "Z0") {
+  if (toggled$var == "Z0") {
     # Z0 was toggled
     check.reach <- TRUE
-  } else if (toggled$var = "Y") {
+  } else if (toggled$var == "Y") {
     # Y was toggled for an edge
-    edge <- prev.sample$W[toggled$edge]
+    edge <- prev.sample$W[toggled$idx]
     # Compute reverse edge (flip row and column index)
-    rev.edge <- prev.sample$W[matrix(rev(toggled$edge), nrow = 1)]
+    rev.edge <- prev.sample$W[matrix(rev(toggled$idx), nrow = 1)]
     # Check if W = 1 in either direction for link in Y
     if ((edge == 1) | (rev.edge == 1)) {
       # W = 1 for that corresponding link in either direction
       check.reach <- TRUE
     }
-  } else if (toggled$var = "W") {
+  } else if (toggled$var == "W") {
     # W was toggled for a directed edge
-    if (prev.sample$Y[toggled$edge] == 1) {
+    if (prev.sample$Y[toggled$idx] == 1) {
       # Y = 1 for corresponding edge
       # NOTE: Don't need to check reverse edge, since Y should be symmetric
       check.reach <- TRUE
@@ -731,7 +825,7 @@ llratio.toggle <- function(proposal, prev.sample, toggled, obs, params, class.la
     # Compute reachability matrix
     R.D <- reachability(proposal$W * proposal$Y)
     # Compute resulting infection
-    Z <- Z0 %*% R.D
+    Z <- as.vector(proposal$Z0 %*% R.D)
     Z[Z > 1] <- 1
 
     # Check if infection derived from proposal is consistent with observation
@@ -744,7 +838,7 @@ llratio.toggle <- function(proposal, prev.sample, toggled, obs, params, class.la
   # Compute design matrix
   design.mtx <- compute.design.mtx(obs$Z.obs, obs$S, obs$ct.design)
 
-  if (! all(Y[design.mtx == 1] == obs$Y.obs[design.mtx == 1])) {
+  if (! all(proposal$Y[design.mtx == 1] == obs$Y.obs[design.mtx == 1])) {
     consistent <- FALSE
     print("Y in MCMC sample inconsistent with Y.obs")
   }
@@ -762,21 +856,21 @@ llratio.toggle <- function(proposal, prev.sample, toggled, obs, params, class.la
     ones <- rep(1, num.nodes)
 
     # Determine which variable was toggled and compute corresponding ratio
-    if (toggled$var = "Z0") {
+    if (toggled$var == "Z0") {
       # Change in number of infected nodes
       delta.Z0 <- t(proposal$Z0 - prev.sample$Z0) %*% ones
       # Factor in ratio due to Z0 toggle
       ratio.Z0 <- (params$eta / (1 - params$eta)) ^ delta.Z0
 
       ratio <- ratio.Z0
-    } else if (toggled$var = "W") {
+    } else if (toggled$var == "W") {
       # Change in number of transmissible links
       delta.W <- t(ones) %*% (proposal$W - prev.sample$W) %*% ones
       # Factor in ratio due to W toggle
       ratio.W <- (params$tau / (1 - params$tau)) ^ delta.W
 
       ratio <- ratio.W
-    } else if (toggled$var = "Y") {
+    } else if (toggled$var == "Y") {
       if (length(unique(class.labels)) == 1) {
         # Case of one class
         # params$P.ij is a scalar
@@ -845,7 +939,7 @@ toggle.Z0 <- function(prev.sample, obs) {
   #                   "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
   #
   # Returns:
-  #   [proposal is a list containing proposed sample in Monte Carlo Markov chain]
+  #   [proposal is a list containing proposed sample in Markov chain]
   #   proposal$Y - network sample (matrix)
   #   proposal$Z0 - initial infection sample (vector)
   #   proposal$W - transmissibility matrix sample (matrix)
@@ -890,7 +984,7 @@ toggle.Y <- function(prev.sample, obs) {
   #                   "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
   #
   # Returns:
-  #   [proposal is a list containing proposed sample in Monte Carlo Markov chain]
+  #   [proposal is a list containing proposed sample in Markov chain]
   #   proposal$Y - network sample (matrix)
   #   proposal$Z0 - initial infection sample (vector)
   #   proposal$W - transmissibility matrix sample (matrix)
@@ -916,9 +1010,14 @@ toggle.Y <- function(prev.sample, obs) {
 
   # Number of links that can be sampled (multipled by factor of 2 since Y is undirected)
   num.links.sample <- dim(array.indices)[1]
-  # Perform sample
-  edge <- array.indices[sample(1:num.links.sample, 1), ]
 
+  # Error message if no links can be sampled
+  if (num.links.sample == 0) {
+    stop("Error: no sociomatrix links in Y can be toggled")
+  }
+
+  # Perform sample
+  edge <- matrix(array.indices[sample(1:num.links.sample, 1), ], nrow = 1)
   # Toggle link in Y for selected index
 
   # Compute reverse directed edge
@@ -929,8 +1028,10 @@ toggle.Y <- function(prev.sample, obs) {
   # Save toggle info
   toggled <- list(var = "Y", idx = edge)
 
-  return list(proposal = proposal, toggled = toggled)
+  return(list(proposal = proposal, toggled = toggled))
 }
+
+# FIXME: Need to check links from unsampled nodes to infected subgraphs in infected only design
 
 toggle.W <- function(prev.sample, obs) {
   # Toggle a link in the sociomatrix W
@@ -949,7 +1050,7 @@ toggle.W <- function(prev.sample, obs) {
   #                   "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
   #
   # Returns:
-  #   [sample is a list containing next sample in Monte Carlo Markov chain]
+  #   [sample is a list containing next sample in Markov chain]
   #   sample$Y - network sample (matrix)
   #   sample$Z0 - initial infection sample (vector)
   #   sample$W - transmissibility matrix sample (matrix)
@@ -961,7 +1062,7 @@ toggle.W <- function(prev.sample, obs) {
   #   toggled$idx - array index of W matrix element toggled
 
   # Compute number of nodes in network
-  num.nodes <- length(obs$S)
+  num.nodes <- length(prev.sample$Z0)
 
   # Copy previous sample into proposal
   proposal <- prev.sample
@@ -978,20 +1079,20 @@ toggle.W <- function(prev.sample, obs) {
   # Number of links that can be sampled (multipled by factor of 2 since Y is undirected)
   num.links.sample <- dim(array.indices)[1]
   # Perform sample
-  edge <- array.indices[sample(1:num.links.sample, 1), ]
+  edge <- matrix(array.indices[sample(1:num.links.sample, 1), ], nrow = 1)
 
   # Toggle link in W for selected index
-  proposal$W[edge] <- toggle.binary(prev.sample$Y[edge])
+  proposal$W[edge] <- toggle.binary(prev.sample$W[edge])
   # Save toggle info
-  toggled <- list(var = "W", edge = edge, idx = NULL)
+  toggled <- list(var = "W", idx = edge)
 
-  return list(proposal = proposal, toggled = toggled)
+  return(list(proposal = proposal, toggled = toggled))
 }
 
 ############### MCMC FUNCTIONS ###############
 
-compute.next.sample <- function(toggle.var, prev.sample, obs, params, class.labels) {
-  # Compute next sample in Monte Carlo Markov Chain
+propose.sample <- function(toggle.var, prev.sample, obs, params, class.labels) {
+  # Propose next sample in Markov Chain
   #
   # Args:
   #   toggle.var - variable to toggle, either "Y", "Z0", or "W"
@@ -1018,34 +1119,422 @@ compute.next.sample <- function(toggle.var, prev.sample, obs, params, class.labe
   #                  each label must be in 1:num.nodes
   #
   # Returns:
-  #   [sample is a list containing next sample in Monte Carlo Markov chain]
-  #   sample$Y - network sample (matrix)
-  #   sample$Z0 - initial infection sample (vector)
-  #   sample$W - transmissibility matrix sample (matrix)
+  #   [proposal is a list containing proposed sample in Markov chain]
+  #   proposal$Y - network sample (matrix)
+  #   proposal$Z0 - initial infection sample (vector)
+  #   proposal$W - transmissibility matrix sample (matrix)
+  #
+  #   ll.ratio - likelihood ratio of proposal compared to previous sample
   #
   #   accept - Boolean variable indicating whether proposal was accepted
+  #            NOTE: value is 0 or 1, binary integer
   #
-  #   [toggled is list of information about toggled variable]
+  #   [toggled is list of information about toggled variable in proposal]
   #   toggled$var - MCMC sample variable that was toggled:"Y", "Z0", or "W"
   #   toggled$idx - index of entry toggled (scalar for Z0, array index for Y and W)
 
+  # Toggle sample according to specified toggle.var
   if (toggle.var == "Y") {
     result <- toggle.Y(prev.sample, obs)
   } else if (toggle.var == "Z0") {
     result <- toggle.Z0(prev.sample, obs)
   } else if (toggle.var == "W") {
-    result <- toggle.Z0(prev.sample, obs)
+    result <- toggle.W(prev.sample, obs)
   } else {
     stop("Error: Invalid value specified for toggle.var")
   }
 
-  accept <- (llratio.toggle(result$proposal, prev.sample, result$toggled, obs, params, class.labels) > runif(1))
+  # Likelihood ratio of toggled sample compared to untoggled sample
+  ratio <- llratio.toggle(result$proposal, prev.sample, result$toggled, obs, params, class.labels)
+  # Boolean variable for whether or not proposal was accepted
+  accept <- (ratio > runif(1))
 
-  if (accept) {
-    next.sample <- result$proposal
-  } else {
-    next.sample <- prev.sample
+  # NOTE: The Boolean accept variable is coerced to a binary integer
+  return(list(proposal = result$proposal, ll.ratio = ratio, accept = as.integer(accept), toggled = result$toggled))
+}
+
+construct.prop.data <- function(prop.result) {
+  # Construct single data case for a proposal result, for assignment in data frame
+  #
+  # Args:
+  #
+  #   prop.result is an object list(proposal = proposal, ll.ratio = ll.ratio, accept = accept, toggled = toggled)
+  #
+  #   [proposal is a list containing next sample in Markov chain]
+  #   proposal$Y - network sample (matrix)
+  #   proposal$Z0 - initial infection sample (vector)
+  #   proposal$W - transmissibility matrix sample (matrix)
+  #
+  #   ll.ratio - likelihood ratio of sample compared to previous sample
+  #
+  #   accept - Boolean variable indicating whether proposal was accepted
+  #            NOTE: value is 0 or 1, binary integer
+  #
+  #   [toggled is list of information about toggled variable]
+  #   toggled$var - MCMC sample variable that was toggled:"Y", "Z0", or "W"
+  #   toggled$idx - index of entry toggled (scalar for Z0, array index for Y and W)
+  #
+  # Returns:
+  #   data.case - list of proposal data, to be recorded to data frame
+  #
+  #   The list consists of the following (in this order)
+  #     accept - whether sample was accepted
+  #     toggled.var - variable toggled in sample (if applicable)
+  #     node - node toggled (if toggled.var = Z0)
+  #     head - head of edge toggled (if toggled.var = Y or W)
+  #     tail - tail of edge toggled (if toggled.var = Y or W)
+  #     ll.ratio - likelihood ratio of sample compared to previous sample
+
+  # Copy info from sample.result
+  accept <- as.integer(prop.result$accept)
+  ll.ratio <- prop.result$ll.ratio
+  toggled <- prop.result$toggled
+
+  toggled.var <- toggled$var
+
+  # Assign node, head, and tail variables
+
+  # node is only valid variable for toggled.var = Z0
+  node <- NA
+  # head and tail are only valid variables for toggled.var = Y or W
+  head <- NA
+  tail <- NA
+  if (toggled.var == "Z0") {
+    # node is Z0 index toggled
+    node <- as.integer(toggled$idx)
+  }
+  if ((toggled.var == "Y") | (toggled.var == "W")) {
+    edge <- toggled$idx
+    # head of edge toggled
+    head <- as.integer(edge[1, 1])
+    # tail of edge toggled
+    tail <- as.integer(edge[1, 2])
   }
 
-  return list(sample = next.sample, accept = accept, toggled = result$toggled)
+  # Coerce character to factor
+  toggled.var <- factor(toggled.var, levels = c("Z0", "Y", "W"))
+
+  # Construct data case
+  data.case <- list(accept, toggled.var, node, head, tail, ll.ratio)
+
+  return(data.case)
+}
+
+compute.sample.stats <- function(sample, params, class.labels) {
+  # Compute statistics for sample in Markov Chain and construct data case for stats data frame
+  #
+  # NOTE: For calculation of log-likelihood, assumes that sample is consistent with observations!
+  #
+  # Args:
+  #
+  #   [sample is a MCMC sample, a list of network variables]
+  #   sample$Y - network sample (matrix)
+  #   sample$Z0 - initial infection sample (vector)
+  #   sample$W - transmissibility matrix sample (matrix)
+  #
+  #   [params is a list of model parameters]
+  #   params$P.ij - square, symmetric matrix containing probabilities; each entry
+  #                  is the probability of a link between node class i and node class j
+  #   params$eta - Bernoulli process parameter for initial infection
+  #   params$tau - Bernoulli process parameter for generating transmission matrix
+  #
+  #   class.labels - class labels (string) for each node, as vector of strings;
+  #                  each label must be in 1:num.nodes
+  #
+  # Returns:
+  #   data.case - list of MCMC sample statistics, to be recorded to data frame
+  #
+  #   The list consists of the following (in this order)
+  #     loglik - log-likelihood of sample
+  #     num.initial.infected - number of initial infected nodes in sample
+  #     num.infected - number of infected nodes in sample
+  #     num.Y.links - number of links in sociomatrix for sample
+  #     num.W.links - number of links in transmissibility matrix for sample
+
+  # Compute log-likelihood of sample
+  # NOTE: This assumes that the sample is consistent with observations!
+  loglik <- log.likelihood(sample, params, class.labels)
+
+  # Compute reachability matrix
+  R.D <- reachability(sample$W * sample$Y)
+  # Compute resulting infection
+  Z <- as.vector(sample$Z0 %*% R.D)
+  Z[Z > 1] <- 1
+
+  # Compute stats
+  num.initial.infected <- as.integer(sum(sample$Z0))
+  num.infected <- as.integer(sum(Z))
+  num.Y.links <- as.integer(sum(sample$Y) / 2)
+  num.W.links <- as.integer(sum(sample$W))
+
+  # Construct data case as list of stats
+  data.case <- list(loglik, num.initial.infected, num.infected, num.Y.links, num.W.links)
+
+  return(data.case)
+}
+
+simulate.mcmc.chain <- function(obs, params, class.labels, options) {
+  # Simulate Markov chain using Monte Carlo
+  #
+  # Args:
+  #
+  #   [obs is a list of observations]
+  #   obs$Y.obs - observed network, derived from sample
+  #   obs$Z.obs - observed infection, derived from sample
+  #   obs$S - contact tracing sample as vector
+  #   obs$ct.design - contact tracing design used for sample: "infected_only",
+  #                   "infected_and_edge_units", "contacts_of_edge_units", "full_contact_components"
+  #
+  #   [params is a list of model parameters]
+  #   params$P.ij - square, symmetric matrix containing probabilities; each entry
+  #                  is the probability of a link between node class i and node class j
+  #   params$eta - Bernoulli process parameter for initial infection
+  #   params$tau - Bernoulli process parameter for generating transmission matrix
+  #
+  #   class.labels - class labels (string) for each node, as vector of strings;
+  #                  each label must be in 1:num.nodes
+  #
+  #   [optional arguments]
+  #
+  #   options$initial.max.tries -
+  #   options$num.Z0.toggles - number of Z0 toggles to attempt
+  #   options$mult.Y.toggles - number of Y toggles to attempt per Z0 toggle
+  #   options$mult.W.toggles - number of W toggles to attempt per Y toggle
+  #   options$burnin - size of burnin for Markov chain
+  #   options$interval - interval to sample after burnin is achieved
+  #   options$collect.data - Boolean variable whether to collect data / stats about chain
+  #
+  # Returns:
+  #   samples - list of Markov chain samples where each sample has the structure
+  #
+  #   [each sample is a list containing the following]
+  #   sample$Y - network sample (matrix)
+  #   sample$Z0 - initial infection sample (vector)
+  #   sample$W - transmissibility matrix sample (matrix)
+  #
+  #   [[optional data returned, if collect.data = TRUE]]
+  #
+  #   proposals - list of proposals from Metropolis algorithm
+  #
+  #   [each proposal is a list containing the following]
+  #   proposal$Y - network sample (matrix)
+  #   proposal$Z0 - initial infection sample (vector)
+  #   proposal$W - transmissibility matrix sample (matrix)
+  #
+  #   sample.stats
+  #   prop.data
+
+  # FIXME: Finish comments above
+
+  # Compute number of nodes in socionetwork
+  num.nodes <- length(obs$S)
+
+  # Set defaults for options
+  opts <- list(initial.max.tries = 100, num.Z0.toggles = 2, mult.Y.toggles = num.nodes, mult.W.toggles = 2, burnin = 0, collect.data = TRUE)
+  # Fill in user-specified options
+  opts[names(options)] <- options
+
+  # Compute total samples in MCMC chain
+  total.samples <- opts$num.Z0.toggles * opts$mult.Y.toggles * opts$mult.W.toggles + 1
+
+  # --------------- Draw initial sample --------------- #
+
+  success <- FALSE
+  tries <- 0
+  while ((! success) & (tries < opts$initial.max.tries)) {
+    initial.result <- draw.initial.sample(obs, class.labels, params)
+    tries <- tries + 1
+    success <- initial.result$success
+  }
+
+  if (tries >= opts$initial.max.tries) {
+    stop("Error: Failed to draw valid initial MCMC sample")
+  }
+
+  print("Succeeded in drawing initial sample")
+
+  # Save initial sample
+  initial.sample <- initial.result$sample
+
+  # ---------- Initialize lists for samples, proposals, and stats ---------- #
+
+  # Initialize list of MCMC samples
+  samples <- replicate(total.samples, list())
+  samples[[1]] <- initial.sample
+
+  # Initialize optional data
+  if (opts$collect.data) {
+    # Initialize list of proposal samples
+    proposals <- replicate(total.samples, list())
+    proposals[[1]] <- initial.sample
+
+    # Initialize sample stats data frame
+    sample.stats <- data.frame(loglik = numeric(total.samples), num.initial.infected = integer(total.samples), num.infected = integer(total.samples), num.Y.links = integer(total.samples), num.W.links = integer(total.samples))
+    sample.stats[1, ] <- rep(NA, length(names(sample.stats)))
+
+    # QUESTION: Implement toggled.var in data frame as character or factor?
+    #
+    # Alternative implementation of toggled.var in data frame, as character instead of factor
+    #
+    # prop.data <- data.frame(accept = integer(total.samples), toggled.var = character(total.samples), node = integer(total.samples), head = integer(total.samples), tail = integer(total.samples), ll.ratio = numeric(total.samples), stringsAsFactors = FALSE)
+
+    # Initialize proposal data frame
+    prop.data <- data.frame(accept = integer(total.samples), toggled.var = factor(rep(NA, total.samples), levels = c("Z0", "Y", "W")), node = integer(total.samples), head = integer(total.samples), tail = integer(total.samples), ll.ratio = numeric(total.samples), stringsAsFactors = TRUE)
+    prop.data[1, ] <- rep(NA, length(names(prop.data)))
+  }
+
+  # ----------------- Start sampling --------------- #
+
+  # Save previous sample
+  prev.sample <- initial.sample
+
+  # Counter for sample number
+  count <- 1
+
+  for (i in 1:opts$num.Z0.toggles) {
+    # ---------------- Toggle Z0 --------------- #
+    print("Toggle Z0")
+    prop.result <- propose.sample("Z0", prev.sample, obs, params, class.labels)
+
+    # ----- Tedious boilerplate to update data ----- #
+
+    count <- count + 1
+    print(count)
+
+    accept <- prop.result$accept
+
+    if (accept == 1) {
+      samples[[count]] <- prop.result$proposal
+      prev.sample <- prop.result$proposal
+    } else {
+      samples[[count]] <- samples[[count - 1]]
+    }
+
+    if (opts$collect.data) {
+      proposals[[count]] <- prop.result$proposal
+
+      prop.data[count, ] <- construct.prop.data(prop.result)
+
+      if (prop.result$accept == 1) {
+        # Proposal accepted, so compute stats on proposal
+        sample.stats[count, ] <- compute.sample.stats(prop.result$proposal, params, class.labels)
+      } else {
+        if (count == 2) {
+          # Proposal not accepted, need to compute stats based on initial sample
+          sample.stats[count, ] <- compute.sample.stats(initial.sample, params, class.labels)
+        } else {
+          # Proposal not accepted, copy stats from previous sample
+          sample.stats[count, ] <- sample.stats[count - 1, ]
+        }
+      }
+    }
+    # ----- End of tedious boilerplate to update data ----- #
+
+    for (j in 1:opts$mult.Y.toggles) {
+      # ---------------- Toggle Y --------------- #
+      print("Toggle Y")
+      prop.result <- propose.sample("Y", prev.sample, obs, params, class.labels)
+
+      # ----- Tedious boilerplate to update data ----- #
+
+      count <- count + 1
+      print(count)
+
+      accept <- prop.result$accept
+
+      if (accept == 1) {
+        samples[[count]] <- prop.result$proposal
+        prev.sample <- prop.result$proposal
+      } else {
+        samples[[count]] <- samples[[count - 1]]
+      }
+
+      if (opts$collect.data) {
+        proposals[[count]] <- prop.result$proposal
+
+        prop.data[count, ] <- construct.prop.data(prop.result)
+
+        if (prop.result$accept == 1) {
+          # Proposal accepted, so compute stats on proposal
+          sample.stats[count, ] <- compute.sample.stats(prop.result$proposal, params, class.labels)
+        } else {
+          if (count == 2) {
+            # Proposal not accepted, need to compute stats based on initial sample
+            sample.stats[count, ] <- compute.sample.stats(initial.sample, params, class.labels)
+          } else {
+            # Proposal not accepted, copy stats from previous sample
+            sample.stats[count, ] <- sample.stats[count - 1, ]
+          }
+        }
+      }
+      # ----- End of tedious boilerplate to update data ----- #
+
+      for (k in 1:opts$mult.W.toggles) {
+        # ---------------- Toggle W --------------- #
+        print("Toggle W")
+        prop.result <- propose.sample("W", prev.sample, obs, params, class.labels)
+
+        # ----- Tedious boilerplate to update data ----- #
+
+        count <- count + 1
+        print(count)
+
+        accept <- prop.result$accept
+
+        if (accept == 1) {
+          samples[[count]] <- prop.result$proposal
+          prev.sample <- prop.result$proposal
+        } else {
+          samples[[count]] <- samples[[count - 1]]
+        }
+
+        if (opts$collect.data) {
+          proposals[[count]] <- prop.result$proposal
+
+          prop.data[count, ] <- construct.prop.data(prop.result)
+
+          if (prop.result$accept == 1) {
+            # Proposal accepted, so compute stats on proposal
+            sample.stats[count, ] <- compute.sample.stats(prop.result$proposal, params, class.labels)
+          } else {
+            if (count == 2) {
+              # Proposal not accepted, need to compute stats based on initial sample
+              sample.stats[count, ] <- compute.sample.stats(initial.sample, params, class.labels)
+            } else {
+              # Proposal not accepted, copy stats from previous sample
+              sample.stats[count, ] <- sample.stats[count - 1, ]
+            }
+          }
+        }
+        # ----- End of tedious boilerplate to update data ----- #
+
+      }
+    }
+  }
+
+  print("Initial sample")
+  print(initial.sample)
+
+  if (opts$collect.data) {
+    return(list(samples = samples, proposals = proposals, sample.stats = sample.stats, prop.data = prop.data))
+  } else {
+    return(list(samples = samples))
+  }
+
+}
+
+convert.samples.coda <- function(samples) {
+
+  num.samples <- length(samples)
+  Z0.data <- matrix(NA, nrow = num.samples, ncol = length(samples[[1]]$Z0))
+  Y.data <- matrix(NA, nrow = num.samples, ncol = prod(dim(samples[[1]]$Y)))
+  W.data <- matrix(NA, nrow = num.samples, ncol = prod(dim(samples[[1]]$W)))
+
+  for (i in 1:num.samples) {
+    Z0.data[i, ] <- samples[[i]]$Z0
+    Y.data[i, ] <- as.vector(samples[[i]]$Y)
+    W.data[i, ] <- as.vector(samples[[i]]$W)
+  }
+
+  return(list(Z0.mcmc = mcmc(Z0.data), Y.mcmc = mcmc(Y.data), W.mcmc = mcmc(W.data)))
 }
