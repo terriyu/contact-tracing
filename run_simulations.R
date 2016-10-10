@@ -25,22 +25,23 @@ file.prefix <- "sim_data"
 use.rds <- TRUE
 
 # Number of networks and samples to simulate
-num.sims <- 100
-#num.sims <- 1
+#num.sims <- 100
+num.sims <- 1
 
 # ---------- MODEL PARAMETERS ---------- #
 
 # Parameters for network, disease, and sampling models
-num.nodes <- 200  # Number of nodes in network (nodes.per.class for multiple classes)
-p <- 0.01         # Bernoulli parameter for link between two nodes (P.ij for multiple classes)
-eta <- 0.065      # Bernoulli parameter for initial infection
-tau <- 0.55       # Bernoulli parameter for transmission
-sigma <- 0.11     # Bernoulli parameter for initial sample
-#num.nodes <- 6
-#p <- 0.5
-#eta <- 0.2
-#tau <- 0.2
-#sigma <- 0.2
+#num.nodes <- 200  # Number of nodes in network (nodes.per.class for multiple classes)
+#p <- 0.01         # Bernoulli parameter for link between two nodes (P.ij for multiple classes)
+#eta <- 0.065      # Bernoulli parameter for initial infection
+#tau <- 0.55       # Bernoulli parameter for transmission
+#sigma <- 0.11     # Bernoulli parameter for initial sample
+
+num.nodes <- 6
+p <- 0.5
+eta <- 0.2
+tau <- 0.2
+sigma <- 0.2
 
 # Save model parameters in list
 model.params <- list(nodes.per.class = num.nodes, P.ij = p, eta = eta, tau = tau, sigma = sigma)
@@ -74,7 +75,8 @@ sim.data.list <- replicate(num.sims, list())
 
 for (i in 1:num.sims) {
   # Generate network and spread infection
-  socio.net <- generate.network(num.nodes, p)
+  class.labels <- rep(1, times = num.nodes)
+  socio.net <- generate.network(class.labels, p)
   spread.result <- spread.infection(socio.net, eta, tau, initial.infect.method, options = list(num.infect = num.infect))
   # Unpack network and disease results
   Z0 <- spread.result$Z0                    # Initial infected nodes
@@ -83,7 +85,7 @@ for (i in 1:num.sims) {
   disease.net <- spread.result$disease.net  # Network with disease attributes
 
   # Perform contact tracing sample
-  samp.result <- ct.sample(disease.net, sigma, ct.design, options = list(size.S0 = size.S0, num.waves = num.waves, p.trace.infected = p.trace.infected, p.trace.uninfected = p.trace.uninfected)
+  samp.result <- ct.sample(disease.net, sigma, ct.design, options = list(size.S0 = size.S0, num.waves = num.waves, p.trace.infected = p.trace.infected, p.trace.uninfected = p.trace.uninfected))
   # Unpack sampling results
   S0 <- samp.result$S0  # Initial sampled nodes
   S <- samp.result$S    # Sampled nodes
